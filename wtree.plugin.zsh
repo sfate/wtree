@@ -88,7 +88,12 @@ _wtree_list() {
     local ref="$(basename "$worktree")"
     local branch=$(cd "$worktree" 2>/dev/null && git branch --show-current 2>/dev/null)
     if [[ "$branch" != "" ]]; then
-      echo "$ref -> $branch"
+      local last_activity=$(cd "$worktree" 2>/dev/null && git log -1 --format="%cr" "$branch" 2>/dev/null)
+      if [[ "$last_activity" != "" ]]; then
+        echo "$ref -> $branch  ($last_activity)"
+      else
+        echo "$ref -> $branch"
+      fi
     fi
   done
 }
