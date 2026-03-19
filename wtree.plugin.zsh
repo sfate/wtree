@@ -70,6 +70,40 @@ _wtree_ensure_branch() {
 }
 
 # Command: List worktrees
+# Print worktrees as an ASCII table, sorted by timestamp descending.
+# Args: parallel arrays refs, branches, activities, timestamps (passed by name via $1..$4)
+_wtree_print_table() {
+  local -a s_refs s_branches s_activities
+
+  while IFS=$'\t' read -r _ ref branch activity; do
+    s_refs+=("$ref")
+    s_branches+=("$branch")
+    s_activities+=("$activity")
+  done < <(
+    local n=${#_wtree_table_refs[@]}
+    for ((i = 1; i <= n; i++)); do
+      printf '%s\t%s\t%s\t%s\n' "${_wtree_table_timestamps[$i]}" "${_wtree_table_refs[$i]}" "${_wtree_table_branches[$i]}" "${_wtree_table_activities[$i]}"
+    done | sort -rn
+  )
+
+  local w_ref=3 w_branch=6 w_activity=13
+  local n=${#s_refs[@]}
+  for ((i = 1; i <= n; i++)); do
+    [[ ${#s_refs[$i]}       -gt $w_ref      ]] && w_ref=${#s_refs[$i]}
+    [[ ${#s_branches[$i]}   -gt $w_branch   ]] && w_branch=${#s_branches[$i]}
+    [[ ${#s_activities[$i]} -gt $w_activity ]] && w_activity=${#s_activities[$i]}
+  done
+
+  local hr="+$(printf '%*s' $((w_ref+2))      '' | tr ' ' '-')+$(printf '%*s' $((w_branch+2))   '' | tr ' ' '-')+$(printf '%*s' $((w_activity+2)) '' | tr ' ' '-')+"
+  echo "$hr"
+  printf "| %-${w_ref}s | %-${w_branch}s | %-${w_activity}s |\n" "Ref" "Branch" "Last Activity"
+  echo "$hr"
+  for ((i = 1; i <= n; i++)); do
+    printf "| %-${w_ref}s | %-${w_branch}s | %-${w_activity}s |\n" "${s_refs[$i]}" "${s_branches[$i]}" "${s_activities[$i]}"
+  done
+  echo "$hr"
+}
+
 _wtree_list() {
   local project_dir
   project_dir=$(_wtree_get_project_dir) || return 1
@@ -81,21 +115,27 @@ _wtree_list() {
     return 0
   fi
 
-  echo "\nWorktrees for project: $name_project"
-  echo "────────────────────────────────────"
-
+  _wtree_table_refs=()
+  _wtree_table_branches=()
+  _wtree_table_activities=()
+  _wtree_table_timestamps=()
   for worktree in "$worktree_project_dir"/*(/N); do
     local ref="$(basename "$worktree")"
     local branch=$(cd "$worktree" 2>/dev/null && git branch --show-current 2>/dev/null)
     if [[ "$branch" != "" ]]; then
-      local last_activity=$(cd "$worktree" 2>/dev/null && git log -1 --format="%cr" "$branch" 2>/dev/null)
-      if [[ "$last_activity" != "" ]]; then
-        echo "$ref -> $branch  ($last_activity)"
-      else
-        echo "$ref -> $branch"
-      fi
+      local log_out=$(cd "$worktree" 2>/dev/null && git log -1 --format="%ct %cr" "$branch" 2>/dev/null)
+      local ts="${log_out%% *}"
+      local last_activity="${log_out#* }"
+      [[ "$last_activity" == "$log_out" ]] && last_activity=""
+      _wtree_table_refs+=("$ref")
+      _wtree_table_branches+=("$branch")
+      _wtree_table_activities+=("$last_activity")
+      _wtree_table_timestamps+=("${ts:-0}")
     fi
   done
+
+  echo "\nWorktrees for project: $name_project"
+  _wtree_print_table
 }
 
 # Command: Delete worktree
@@ -158,6 +198,63 @@ _wtree_clean() {
   echo "All worktrees cleaned."
 }
 
+# Command: Remove worktrees with no activity in the last 2 weeks
+_wtree_clean_stale() {
+  local project_dir
+  project_dir=$(_wtree_get_project_dir) || return 1
+  local name_project="$(basename $project_dir)"
+  local worktree_project_dir="$_worktree_base_dir/$name_project"
+
+  if [[ ! -d "$worktree_project_dir" ]]; then
+    echo "\nNo worktrees found for project: $name_project"
+    return 0
+  fi
+
+  local cutoff=$(( $(date +%s) - 14 * 24 * 3600 ))
+  _wtree_table_refs=()
+  _wtree_table_branches=()
+  _wtree_table_activities=()
+  _wtree_table_timestamps=()
+  for worktree in "$worktree_project_dir"/*(/N); do
+    local ref="$(basename "$worktree")"
+    local branch=$(cd "$worktree" 2>/dev/null && git branch --show-current 2>/dev/null)
+    [[ "$branch" == "" ]] && continue
+    local log_out=$(cd "$worktree" 2>/dev/null && git log -1 --format="%ct %cr" "$branch" 2>/dev/null)
+    local ts="${log_out%% *}"
+    local last_activity="${log_out#* }"
+    [[ "$last_activity" == "$log_out" ]] && last_activity=""
+    [[ "${ts:-0}" -lt "$cutoff" ]] || continue
+    _wtree_table_refs+=("$ref")
+    _wtree_table_branches+=("$branch")
+    _wtree_table_activities+=("$last_activity")
+    _wtree_table_timestamps+=("${ts:-0}")
+  done
+
+  if [[ ${#_wtree_table_refs[@]} -eq 0 ]]; then
+    echo "\nNo stale worktrees found for project: $name_project"
+    return 0
+  fi
+
+  echo "\nStale worktrees for project: $name_project (no activity in 2+ weeks)"
+  _wtree_print_table
+  echo -n "\nRemove ${#_wtree_table_refs[@]} worktree(s)? [y/N] "
+  read -r confirm
+  [[ "$confirm" != "y" && "$confirm" != "Y" ]] && echo "Aborted." && return 0
+
+  cd "$project_dir"
+  for ref in "${_wtree_table_refs[@]}"; do
+    echo "Removing: $ref"
+    git worktree remove "$worktree_project_dir/$ref" --force
+    _wtree_custom_post_delete "$ref"
+  done
+
+  if [[ -d "$worktree_project_dir" && -z "$(ls -A "$worktree_project_dir")" ]]; then
+    rmdir "$worktree_project_dir"
+  fi
+
+  echo "Done."
+}
+
 # Command: Navigate to project root
 _wtree_root() {
   local project_dir
@@ -176,6 +273,7 @@ _wtree_help() {
   echo "  wtree --list                         List worktrees for project"
   echo "  wtree --delete <ref>                 Delete worktree by <ref>"
   echo "  wtree --clean/--clear                Remove all project worktrees"
+  echo "  wtree --clean-stale                  Remove worktrees inactive for 2+ weeks"
   echo "  wtree --root                         Navigate to project root"
   echo "  wtree --help/-h                      Show this help"
   echo "\nExamples:"
@@ -346,6 +444,9 @@ function wtree() {
       ;;
     --clean|--clear)
       _wtree_clean
+      ;;
+    --clean-stale)
+      _wtree_clean_stale
       ;;
     --root)
       _wtree_root
