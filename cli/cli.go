@@ -67,6 +67,10 @@ func NewRootCmd(opts Options) *Command {
 	return app.NewRootCmd()
 }
 
+func NewRootCmdWithOptions(opts Options) *Command {
+	return NewRootCmd(opts)
+}
+
 func NewApp(opts Options) *App {
 	handler := handlers.NewHandler(handlers.Options{
 		Stdin:   opts.Stdin,
@@ -152,8 +156,35 @@ func (a *App) runParsedArgs(args *rootArgs) error {
 	}
 
 	hasPositionals := args.Ref != "" || args.Branch != "" || args.BaseBranch != ""
-	if handlerType != handlers.HandlerTypeCreate && hasPositionals {
-		return errors.New("positional arguments are not accepted with this command: " + string(handlerType))
+	switch handlerType {
+	case handlers.HandlerTypeShellInit:
+		if hasPositionals {
+			return errors.New("--shell-init does not accept positional arguments")
+		}
+	case handlers.HandlerTypeList:
+		if hasPositionals {
+			return errors.New("--list does not accept positional arguments")
+		}
+	case handlers.HandlerTypeDelete:
+		if hasPositionals {
+			return errors.New("--delete does not accept positional arguments")
+		}
+	case handlers.HandlerTypeClean:
+		if hasPositionals {
+			return errors.New("--clean/--clear does not accept positional arguments")
+		}
+	case handlers.HandlerTypeCleanStale:
+		if hasPositionals {
+			return errors.New("--clean-stale does not accept positional arguments")
+		}
+	case handlers.HandlerTypeRoot:
+		if hasPositionals {
+			return errors.New("--root does not accept positional arguments")
+		}
+	case handlers.HandlerTypeVersion:
+		if hasPositionals {
+			return errors.New("--version does not accept positional arguments")
+		}
 	}
 
 	serviceArgs := operations.ServiceArgs{

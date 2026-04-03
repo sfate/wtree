@@ -3,9 +3,9 @@ package handlers
 import (
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 
 	"github.com/sfate/wtree/config"
 	gitpkg "github.com/sfate/wtree/git"
@@ -62,17 +62,33 @@ type HandlerArgs struct {
 }
 
 func NewHandler(opts Options) *Handler {
+	stdin := opts.Stdin
+	if stdin == nil {
+		stdin = os.Stdin
+	}
+	stdout := opts.Stdout
+	if stdout == nil {
+		stdout = os.Stdout
+	}
+	stderr := opts.Stderr
+	if stderr == nil {
+		stderr = os.Stderr
+	}
+
+	h := &Handler{
+		stdin:   stdin,
+		stdout:  stdout,
+		stderr:  stderr,
+		version: opts.Version,
+	}
+
 	options := operations.ServiceOptions{
-		Stdin:   opts.Stdin,
-		Stdout:  opts.Stdout,
-		Stderr:  opts.Stderr,
-		Version: opts.Version,
-		ManagerFactory: func() (*wtreepkg.Manager, error) {
-			return nil, fmt.Errorf("manager factory not set")
-		},
-		HookRunner: func(script string, args ...string) error {
-			return fmt.Errorf("hook runner not set")
-		},
+		Stdin:          stdin,
+		Stdout:         stdout,
+		Stderr:         stderr,
+		Version:        opts.Version,
+		ManagerFactory: h.newManager,
+		HookRunner:     h.runHook,
 	}
 
 	operationHandlers := make(map[HandlerType]operations.OperationService)
@@ -80,10 +96,9 @@ func NewHandler(opts Options) *Handler {
 		operationHandlers[kind] = service()
 	}
 
-	return &Handler{
-		options:  options,
-		handlers: operationHandlers,
-	}
+	h.options = options
+	h.handlers = operationHandlers
+	return h
 }
 
 func (h *Handler) Call(kind HandlerType, args operations.ServiceArgs) error {
@@ -94,52 +109,32 @@ func (h *Handler) Call(kind HandlerType, args operations.ServiceArgs) error {
 	return fmt.Errorf("unsupported handler type: %q", kind)
 }
 
-func (h *Handler) contextWithDefaults(ctx operations.Context) operations.Context {
-	ctx.ManagerFactory = h.newManager
-	ctx.HookRunner = h.runHook
-	return ctx
-}
-
 func (h *Handler) newManager() (*wtreepkg.Manager, error) {
 	projectDir, err := gitpkg.FindRoot()
 	if err != nil {
 		return nil, err
 	}
 
-	fileCfg, err := config.Load()
+	projectName := filepath.Base(projectDir)
+	cfg, err := config.LoadOrCreateProjectConfig(projectName, projectDir)
 	if err != nil {
 		return nil, fmt.Errorf("config: %w", err)
 	}
-
-	projectName := filepath.Base(projectDir)
-	projCfg, created := fileCfg.FindOrCreate(projectName, projectDir)
-	if created {
-		if err := fileCfg.Save(); err != nil {
-			_, _ = fmt.Fprintf(h.stderr, "Warning: could not save config: %v\n", err)
-		}
-		return nil, fmt.Errorf("added project %q to config — please fill in the required fields and re-run", projCfg.Name)
-	}
-	cfg := wtreepkg.DefaultConfig()
-	if fileCfg.BaseDir != "" {
-		cfg.BaseDir = fileCfg.ExpandedBaseDir()
-	}
-	if projCfg.TicketPrefix != "" {
-		cfg.TicketPrefix = projCfg.TicketPrefix
-		cfg.BranchPrefix = projCfg.BranchPrefix + strings.ToLower(projCfg.TicketPrefix)
-	}
-
-	if script := projCfg.Hooks.ExpandedPostNavigation(); script != "" {
+	cfg.BaseDir = cfg.EffectiveBaseDir()
+	if script := cfg.Hooks.ExpandedPostNavigation(); script != "" {
 		cfg.PostNavigation = func(ref, projectName, worktreeDir string) error {
 			return h.runHook(script, ref, projectName, worktreeDir)
 		}
 	}
-	if script := projCfg.Hooks.ExpandedPostDelete(); script != "" {
+	if script := cfg.Hooks.ExpandedPostDelete(); script != "" {
 		cfg.PostDelete = func(ref string) error {
 			return h.runHook(script, ref)
 		}
 	}
 
-	return wtreepkg.NewAt(cfg, projectDir), nil
+	return wtreepkg.NewManager(projectDir, cfg, wtreepkg.ManagerDeps{
+		Reporter: wtreepkg.NewCLIReporter(h.stdout, h.stderr),
+	}), nil
 }
 
 func (h *Handler) runHook(script string, args ...string) error {
