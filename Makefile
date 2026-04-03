@@ -1,6 +1,5 @@
 BINARY  := wtree
-VERSION_CMD := go run ./internal/version/cmd
-CURRENT_VERSION := $(VERSION_CMD) get
+VERSION_CMD := go run ./version/cmd
 BUMP    ?= patch
 
 INSTALL_DIR ?= /usr/local/bin
@@ -8,7 +7,7 @@ INSTALL_DIR ?= /usr/local/bin
 .PHONY: build lint audit test clean release
 
 build:
-	go build -o $(BINARY) .
+	go build -ldflags "-X github.com/sfate/wtree/version.Value=$$($(VERSION_CMD) get)" -o $(BINARY) .
 
 test:
 	go test ./...
@@ -27,6 +26,7 @@ release:
 	fi; \
 	git fetch --tags; \
 	LATEST_VERSION=$$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0"); \
+	CURRENT_VERSION=$$($(VERSION_CMD) get); \
 	if [ "$$CURRENT_VERSION" != "$$LATEST_VERSION" ]; then \
 	  echo "VERSION ($$CURRENT_VERSION) does not match latest tag ($$LATEST_VERSION)."; \
 	  exit 1; \
@@ -34,7 +34,7 @@ release:
 	NEW_VERSION=$$($(VERSION_CMD) bump $(BUMP)); \
 	echo "Latest: $$LATEST_VERSION  →  Releasing: $$NEW_VERSION"; \
 	$(VERSION_CMD) set "$$NEW_VERSION"; \
-	git add internal/version/VERSION; \
+	git add version/VERSION; \
 	git commit -m "chore(deps): bump to $$NEW_VERSION"; \
 	git tag -a "$$NEW_VERSION" -m "chore(deps): bump to $$NEW_VERSION"; \
 	git push origin HEAD; \

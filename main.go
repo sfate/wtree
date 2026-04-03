@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/sfate/wtree/internal/cli"
-	"github.com/sfate/wtree/internal/version"
+	"github.com/sfate/wtree/cli"
+	"github.com/sfate/wtree/version"
 )
 
 func main() {

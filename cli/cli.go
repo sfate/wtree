@@ -12,23 +12,22 @@ import (
 	"time"
 
 	arg "github.com/alexflint/go-arg"
-	"github.com/sfate/wtree/internal/config"
-	wtree "github.com/sfate/wtree/internal/wtree"
+	"github.com/sfate/wtree/config"
+	wtree "github.com/sfate/wtree/wtree"
 )
 
 type rootArgs struct {
 	ShellInit  string `arg:"--shell-init" placeholder:"SHELL" help:"Print shell integration for a shell (zsh, bash)"`
 	List       bool   `arg:"--list" help:"List worktrees for the current project"`
 	DeleteRef  string `arg:"--delete" placeholder:"REF" help:"Delete a worktree by ref"`
-	Clean      bool   `arg:"--clean" help:"Remove all worktrees for the current project"`
+	Clean      bool   `arg:"--clean,-c" help:"Remove all worktrees for the current project"`
 	CleanStale bool   `arg:"--clean-stale" help:"Remove worktrees inactive for 2+ weeks"`
 	Root       bool   `arg:"--root" help:"Print the current project root"`
+	Version    bool   `arg:"--version,-v" help:"Print wtree version"`
 
 	Ref        string `arg:"positional" placeholder:"REF"`
 	Branch     string `arg:"positional" placeholder:"BRANCH"`
 	BaseBranch string `arg:"positional" placeholder:"BASE_BRANCH"`
-
-	version string `arg:"-"`
 }
 
 func (a *rootArgs) Description() string {
@@ -37,13 +36,6 @@ func (a *rootArgs) Description() string {
 
 func (a *rootArgs) Epilog() string {
 	return "Examples:\n  wtree ABC-1234\n  wtree feature-x my-branch develop\n  wtree --list\n  wtree --delete ABC-1234"
-}
-
-func (a *rootArgs) Version() string {
-	if a.version == "" {
-		return "dev"
-	}
-	return a.version
 }
 
 type ExitError struct {
@@ -123,9 +115,8 @@ func (c *Command) Execute() error {
 	if argv == nil {
 		argv = os.Args[1:]
 	}
-	argv = normalizeArgs(argv)
 
-	args := &rootArgs{version: c.app.version}
+	args := &rootArgs{}
 	parser, err := arg.NewParser(arg.Config{
 		Program: "wtree",
 		Out:     c.app.stdout,
@@ -149,21 +140,11 @@ func (c *Command) Execute() error {
 	case errors.Is(err, arg.ErrVersion):
 		// Keep version output off stdout so stale shell wrappers do not treat it
 		// as a navigation target and attempt to cd into it.
-		_, _ = fmt.Fprintln(c.app.stderr, args.Version())
+		_, _ = fmt.Fprintln(c.app.stderr, c.app.version)
 		return nil
 	default:
 		return err
 	}
-}
-
-func normalizeArgs(args []string) []string {
-	out := append([]string(nil), args...)
-	for i, arg := range out {
-		if arg == "--clear" {
-			out[i] = "--clean"
-		}
-	}
-	return out
 }
 
 func (a *App) runParsedArgs(args *rootArgs) error {
@@ -184,6 +165,9 @@ func (a *App) runParsedArgs(args *rootArgs) error {
 		modes++
 	}
 	if args.Root {
+		modes++
+	}
+	if args.Version {
 		modes++
 	}
 	if modes > 1 {
@@ -223,6 +207,11 @@ func (a *App) runParsedArgs(args *rootArgs) error {
 			return errors.New("--root does not accept positional arguments")
 		}
 		return a.runRoot()
+	case args.Version:
+		if hasPositionals {
+			return errors.New("--version does not accept positional arguments")
+		}
+		return a.runVersion()
 	default:
 		return a.runCreate(args.Ref, args.Branch, args.BaseBranch)
 	}
@@ -424,4 +413,9 @@ func (a *App) runHook(script string, args ...string) error {
 	cmd.Stdout = a.stderr
 	cmd.Stderr = a.stderr
 	return cmd.Run()
+}
+
+func (a *App) runVersion() error {
+	_, _ = fmt.Fprintln(a.stdout, a.version)
+	return nil
 }

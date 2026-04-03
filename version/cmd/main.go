@@ -4,12 +4,12 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/sfate/wtree/internal/version"
+	"github.com/sfate/wtree/version"
 )
 
 func main() {
 	if len(os.Args) < 2 {
-		fail("usage: go run ./internal/version/cmd <get|set|bump> [args...]")
+		fail("usage: go run ./version/cmd <get|set|bump> [args...]")
 	}
 
 	sVersion, err := version.NewSemver()
@@ -22,14 +22,14 @@ func main() {
 		fmt.Println(sVersion.Current())
 	case "set":
 		if len(os.Args) != 3 {
-			fail("usage: go run ./internal/version/cmd set <version>")
+			fail("usage: go run ./version/cmd set <version>")
 		}
 		if err := sVersion.Set(os.Args[2]); err != nil {
 			fail(err.Error())
 		}
 	case "bump":
 		if len(os.Args) != 3 {
-			fail("usage: go run ./internal/version/cmd bump <patch|minor|major>")
+			fail("usage: go run ./version/cmd bump <patch|minor|major>")
 		}
 		next, err := sVersion.Bump(os.Args[2])
 		if err != nil {

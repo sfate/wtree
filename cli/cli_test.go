@@ -36,13 +36,6 @@ func TestHelpShowsFlagCommands(t *testing.T) {
 	}
 }
 
-func TestNormalizeArgsMapsClearAlias(t *testing.T) {
-	got := normalizeArgs([]string{"--clear", "foo"})
-	if got[0] != "--clean" || got[1] != "foo" {
-		t.Fatalf("normalizeArgs() = %v", got)
-	}
-}
-
 func TestNoArgsReturnsExitCodeOne(t *testing.T) {
 	cmd, out := newTestCommand()
 	cmd.SetArgs([]string{})
@@ -94,15 +87,15 @@ func TestDeleteFlagRequiresNoExtraPositionalArgs(t *testing.T) {
 }
 
 func TestVersionFlagRejectsPositionalArgs(t *testing.T) {
-	cmd, out := newTestCommand()
+	cmd, _ := newTestCommand()
 	cmd.SetArgs([]string{"--version", "extra"})
 
 	err := cmd.Execute()
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if err == nil {
+		t.Fatal("expected an error for extra positional args")
 	}
-	if got := strings.TrimSpace(out.String()); got != "test-version" {
-		t.Fatalf("version output = %q, want %q", got, "test-version")
+	if !strings.Contains(err.Error(), "--version does not accept positional arguments") {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 
