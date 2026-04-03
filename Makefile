@@ -1,7 +1,4 @@
 BINARY  := wtree
-VERSION_FILE := VERSION
-VERSION ?= $(shell cat $(VERSION_FILE) 2>/dev/null || echo "dev")
-LDFLAGS := -ldflags "-X github.com/sfate/wtree/internal/version.Value=$(VERSION)"
 BUMP    ?= patch
 
 INSTALL_DIR ?= /usr/local/bin
@@ -9,7 +6,7 @@ INSTALL_DIR ?= /usr/local/bin
 .PHONY: build lint audit test clean release
 
 build:
-	go build $(LDFLAGS) -o $(BINARY) .
+	go build -o $(BINARY) .
 
 test:
 	go test ./...
@@ -26,11 +23,10 @@ release:
 	  echo "Working tree is not clean. Commit or stash changes before releasing."; \
 	  exit 1; \
 	fi; \
-	CURRENT=$$(cat $(VERSION_FILE) 2>/dev/null || echo "v0.0.0"); \
 	git fetch --tags; \
 	LATEST=$$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0"); \
-	if [ "$$CURRENT" != "$$LATEST" ]; then \
-	  echo "VERSION ($$CURRENT) does not match latest tag ($$LATEST)."; \
+	if [ "$$VERSION" != "$$LATEST" ]; then \
+	  echo "VERSION ($$VERSION) does not match latest tag ($$LATEST)."; \
 	  exit 1; \
 	fi; \
 	MAJOR=$$(echo $$LATEST | cut -d. -f1 | tr -d v); \

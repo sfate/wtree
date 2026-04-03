@@ -7,4 +7,7 @@ require (
 	gopkg.in/yaml.v3 v3.0.1
 )
 
-require github.com/alexflint/go-scalar v1.2.0 // indirect
+require (
+	github.com/alexflint/go-scalar v1.2.0 // indirect
+	golang.org/x/mod v0.34.0 // indirect
+)
