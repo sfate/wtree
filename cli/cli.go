@@ -2,13 +2,13 @@ package cli
 
 import (
 	"errors"
-	"fmt"
 	"io"
 	"os"
 
 	arg "github.com/alexflint/go-arg"
 	"github.com/sfate/wtree/handlers"
 	"github.com/sfate/wtree/handlers/operations"
+	wtreepkg "github.com/sfate/wtree/wtree"
 )
 
 type rootArgs struct {
@@ -49,9 +49,7 @@ type Options struct {
 }
 
 type App struct {
-	stdin   io.Reader
-	stdout  io.Writer
-	stderr  io.Writer
+	ui      *wtreepkg.UI
 	version string
 
 	handler *handlers.Handler
@@ -72,17 +70,14 @@ func NewRootCmdWithOptions(opts Options) *Command {
 }
 
 func NewApp(opts Options) *App {
+	ui := wtreepkg.NewUI(opts.Stdin, opts.Stdout, opts.Stderr)
 	handler := handlers.NewHandler(handlers.Options{
-		Stdin:   opts.Stdin,
-		Stdout:  opts.Stdout,
-		Stderr:  opts.Stderr,
+		UI:      ui,
 		Version: opts.Version,
 	})
 
 	return &App{
-		stdin:   opts.Stdin,
-		stdout:  opts.Stdout,
-		stderr:  opts.Stderr,
+		ui:      ui,
 		version: opts.Version,
 		handler: handler,
 	}
@@ -106,14 +101,14 @@ func (c *Command) Execute() error {
 	args := &rootArgs{}
 	parser, err := arg.NewParser(arg.Config{
 		Program: "wtree",
-		Out:     c.app.stdout,
+		Out:     c.app.ui.Out(),
 	}, args)
 	if err != nil {
 		return err
 	}
 
 	if len(argv) == 0 {
-		parser.WriteHelp(c.app.stdout)
+		parser.WriteHelp(c.app.ui.Out())
 		return ExitError{Code: 1}
 	}
 
@@ -122,12 +117,12 @@ func (c *Command) Execute() error {
 	case err == nil:
 		return c.app.runParsedArgs(args)
 	case errors.Is(err, arg.ErrHelp):
-		parser.WriteHelp(c.app.stdout)
+		parser.WriteHelp(c.app.ui.Out())
 		return nil
 	case errors.Is(err, arg.ErrVersion):
 		// Keep version output off stdout so stale shell wrappers do not treat it
 		// as a navigation target and attempt to cd into it.
-		_, _ = fmt.Fprintln(c.app.stderr, c.app.version)
+		c.app.ui.Errorf("%s\n", c.app.version)
 		return nil
 	default:
 		return err

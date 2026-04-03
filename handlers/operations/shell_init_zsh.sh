@@ -1,7 +1,7 @@
 
 function wtree() {
   case "$1" in
-    --shell-init|-h|--help|--list|--delete|--clean|--clear|--clean-stale|--version)
+    --shell-init|-h|--help|--list|--delete|--clean|--clear|--clean-stale|--version|-v)
       command wtree "$@"
       ;;
     *)

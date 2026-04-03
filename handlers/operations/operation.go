@@ -2,17 +2,13 @@ package operations
 
 import (
 	"fmt"
-	"io"
 
 	wtreepkg "github.com/sfate/wtree/wtree"
 )
 
 type ServiceOptions struct {
-	Stdin  io.Reader
-	Stdout io.Writer
-	Stderr io.Writer
-
 	Version string
+	UI      *wtreepkg.UI
 
 	ManagerFactory func() (*wtreepkg.Manager, error)
 	HookRunner     func(script string, args ...string) error

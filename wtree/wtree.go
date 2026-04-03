@@ -5,6 +5,7 @@ package wtree
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -31,7 +32,7 @@ func (e WorktreeEntry) RelativeAge() string {
 type Manager struct {
 	cfg        config.ProjectConfig
 	projectDir string
-	reporter   Reporter
+	ui         *UI
 }
 
 // New creates a Manager rooted at the git project that contains the current
@@ -52,14 +53,14 @@ func NewAt(cfg config.ProjectConfig, projectDir string) *Manager {
 
 // NewManager creates a Manager with explicit project directory and dependencies.
 func NewManager(projectDir string, cfg config.ProjectConfig, deps ManagerDeps) *Manager {
-	reporter := deps.Reporter
-	if reporter == nil {
-		reporter = noopReporter{}
+	ui := deps.UI
+	if ui == nil {
+		ui = NewUI(nil, io.Discard, io.Discard)
 	}
 	return &Manager{
 		cfg:        cfg,
 		projectDir: projectDir,
-		reporter:   reporter,
+		ui:         ui,
 	}
 }
 
@@ -141,7 +142,7 @@ func (m *Manager) Create(ref, branch, baseBranch string) (dir string, existed bo
 		return "", false, err
 	}
 	if registered {
-		m.reporter.WorktreeExists()
+		m.ui.Errorf("Worktree already exists.\n")
 		if m.cfg.PostNavigation != nil {
 			if err := m.cfg.PostNavigation(ref, m.ProjectName(), wtDir); err != nil {
 				return wtDir, true, err
@@ -166,7 +167,7 @@ func (m *Manager) Create(ref, branch, baseBranch string) (dir string, existed bo
 		}
 	}
 
-	m.reporter.UsingBranchName(branch)
+	m.ui.Errorf("Using branch name: %s\n", branch)
 	if err := gitpkg.EnsureBranch(m.projectDir, branch, baseBranch); err != nil {
 		return "", false, err
 	}
@@ -194,11 +195,11 @@ func (m *Manager) Delete(ref string) error {
 		return fmt.Errorf("worktree not found: %s", ref)
 	}
 
-	m.reporter.RemovingWorktree(ref)
+	m.ui.Infof("Removing worktree: %s\n", ref)
 	if err := gitpkg.WorktreeRemove(m.projectDir, wtDir); err != nil {
 		return err
 	}
-	m.reporter.WorktreeRemoved()
+	m.ui.Infof("Worktree removed.\n")
 
 	if m.cfg.PostDelete != nil {
 		return m.cfg.PostDelete(ref)
@@ -212,13 +213,13 @@ func (m *Manager) Clean() error {
 	dirEntries, err := os.ReadDir(wpd)
 	if err != nil {
 		if os.IsNotExist(err) {
-			m.reporter.NoWorktreesToClean(m.ProjectName())
+			m.ui.Infof("No worktrees to clean for project: %s\n", m.ProjectName())
 			return nil
 		}
 		return err
 	}
 
-	m.reporter.CleaningAllWorktrees(m.ProjectName())
+	m.ui.Infof("Cleaning all worktrees for project: %s\n", m.ProjectName())
 
 	for _, de := range dirEntries {
 		if !de.IsDir() {
@@ -226,7 +227,7 @@ func (m *Manager) Clean() error {
 		}
 		ref := de.Name()
 		wtDir := filepath.Join(wpd, ref)
-		m.reporter.Removing(ref)
+		m.ui.Infof("Removing: %s\n", ref)
 		_ = gitpkg.WorktreeRemove(m.projectDir, wtDir)
 
 		if m.cfg.PostDelete != nil {
@@ -236,7 +237,7 @@ func (m *Manager) Clean() error {
 
 	// Remove empty project worktree directory.
 	m.removeEmptyDir(wpd)
-	m.reporter.AllWorktreesCleaned()
+	m.ui.Infof("All worktrees cleaned.\n")
 	return nil
 }
 
@@ -261,7 +262,7 @@ func (m *Manager) CleanStale(age time.Duration) ([]WorktreeEntry, error) {
 // DeleteEntries removes all worktrees in the provided slice.
 func (m *Manager) DeleteEntries(entries []WorktreeEntry) error {
 	for _, e := range entries {
-		m.reporter.Removing(e.Ref)
+		m.ui.Infof("Removing: %s\n", e.Ref)
 		wtDir := m.worktreeDir(e.Ref)
 		_ = gitpkg.WorktreeRemove(m.projectDir, wtDir)
 

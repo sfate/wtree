@@ -1,10 +1,6 @@
 package operations
 
-import (
-	"fmt"
-
-	wtreepkg "github.com/sfate/wtree/wtree"
-)
+import wtreepkg "github.com/sfate/wtree/wtree"
 
 type ListService struct {
 	OperationServiceImpl
@@ -24,10 +20,10 @@ func (s *ListService) Process(options ServiceOptions, args ServiceArgs) error {
 		return err
 	}
 	if len(entries) == 0 {
-		_, _ = fmt.Fprintf(options.Stdout, "No worktrees found for project: %s\n", m.ProjectName())
+		options.UI.Infof("No worktrees found for project: %s\n", m.ProjectName())
 		return nil
 	}
-	_, _ = fmt.Fprintf(options.Stdout, "Worktrees for project: %s\n", m.ProjectName())
-	wtreepkg.PrintTableTo(options.Stdout, entries)
+	options.UI.Infof("Worktrees for project: %s\n", m.ProjectName())
+	wtreepkg.PrintTableTo(options.UI.Out(), entries)
 	return nil
 }

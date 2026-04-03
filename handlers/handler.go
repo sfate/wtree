@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -14,9 +13,7 @@ import (
 )
 
 type Options struct {
-	Stdin   io.Reader
-	Stdout  io.Writer
-	Stderr  io.Writer
+	UI      *wtreepkg.UI
 	Version string
 }
 
@@ -45,9 +42,7 @@ var operationFactories = map[HandlerType]operations.OperationServiceFactory{
 }
 
 type Handler struct {
-	stdin   io.Reader
-	stdout  io.Writer
-	stderr  io.Writer
+	ui      *wtreepkg.UI
 	version string
 
 	options  operations.ServiceOptions
@@ -62,31 +57,16 @@ type HandlerArgs struct {
 }
 
 func NewHandler(opts Options) *Handler {
-	stdin := opts.Stdin
-	if stdin == nil {
-		stdin = os.Stdin
-	}
-	stdout := opts.Stdout
-	if stdout == nil {
-		stdout = os.Stdout
-	}
-	stderr := opts.Stderr
-	if stderr == nil {
-		stderr = os.Stderr
+	ui := opts.UI
+	if ui == nil {
+		ui = wtreepkg.NewUI(os.Stdin, os.Stdout, os.Stderr)
 	}
 
-	h := &Handler{
-		stdin:   stdin,
-		stdout:  stdout,
-		stderr:  stderr,
-		version: opts.Version,
-	}
+	h := &Handler{ui: ui, version: opts.Version}
 
 	options := operations.ServiceOptions{
-		Stdin:          stdin,
-		Stdout:         stdout,
-		Stderr:         stderr,
 		Version:        opts.Version,
+		UI:             h.ui,
 		ManagerFactory: h.newManager,
 		HookRunner:     h.runHook,
 	}
@@ -133,14 +113,14 @@ func (h *Handler) newManager() (*wtreepkg.Manager, error) {
 	}
 
 	return wtreepkg.NewManager(projectDir, cfg, wtreepkg.ManagerDeps{
-		Reporter: wtreepkg.NewCLIReporter(h.stdout, h.stderr),
+		UI: h.ui,
 	}), nil
 }
 
 func (h *Handler) runHook(script string, args ...string) error {
 	cmd := exec.Command(script, args...)
-	cmd.Stdin = h.stdin
-	cmd.Stdout = h.stderr
-	cmd.Stderr = h.stderr
+	cmd.Stdin = h.ui.In()
+	cmd.Stdout = h.ui.Err()
+	cmd.Stderr = h.ui.Err()
 	return cmd.Run()
 }

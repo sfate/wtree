@@ -1,7 +1,5 @@
 package operations
 
-import "fmt"
-
 type CreateService struct {
 	OperationServiceImpl
 }
@@ -19,6 +17,6 @@ func (s *CreateService) Process(options ServiceOptions, args ServiceArgs) error 
 	if err != nil {
 		return err
 	}
-	_, _ = fmt.Fprintln(options.Stdout, dir)
+	options.UI.Infof("%s\n", dir)
 	return nil
 }
