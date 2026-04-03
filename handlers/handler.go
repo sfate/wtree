@@ -20,17 +20,6 @@ type Options struct {
 	Version string
 }
 
-type Set struct {
-	Create     func(ref, branch, baseBranch string) error
-	List       func() error
-	Delete     func(ref string) error
-	Clean      func() error
-	CleanStale func() error
-	Root       func() error
-	ShellInit  func(shell string) error
-	Version    func() error
-}
-
 type HandlerType string
 
 const (

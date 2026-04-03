@@ -24,7 +24,7 @@ func TestExpandHome(t *testing.T) {
 }
 
 func TestValidate_DuplicateName(t *testing.T) {
-	cfg := Config{Projects: []Project{
+	cfg := Config{Projects: []ProjectConfig{
 		{Name: "foo", Path: "/a"},
 		{Name: "foo", Path: "/b"},
 	}}
@@ -36,7 +36,7 @@ func TestValidate_DuplicateName(t *testing.T) {
 }
 
 func TestValidate_DuplicatePath(t *testing.T) {
-	cfg := Config{Projects: []Project{
+	cfg := Config{Projects: []ProjectConfig{
 		{Name: "foo", Path: "/same"},
 		{Name: "bar", Path: "/same"},
 	}}
@@ -49,7 +49,7 @@ func TestValidate_DuplicatePath(t *testing.T) {
 
 func TestValidate_DuplicatePathExpandedTilde(t *testing.T) {
 	home, _ := os.UserHomeDir()
-	cfg := Config{Projects: []Project{
+	cfg := Config{Projects: []ProjectConfig{
 		{Name: "foo", Path: "~/code"},
 		{Name: "bar", Path: filepath.Join(home, "code")},
 	}}
@@ -59,7 +59,7 @@ func TestValidate_DuplicatePathExpandedTilde(t *testing.T) {
 }
 
 func TestValidate_Valid(t *testing.T) {
-	cfg := Config{Projects: []Project{
+	cfg := Config{Projects: []ProjectConfig{
 		{Name: "foo", Path: "/a"},
 		{Name: "bar", Path: "/b"},
 	}}
@@ -68,56 +68,52 @@ func TestValidate_Valid(t *testing.T) {
 	}
 }
 
-func TestFindOrCreate_ByPath(t *testing.T) {
-	cfg := Config{Projects: []Project{
+func TestFindProjectConfigByPath(t *testing.T) {
+	cfg := Config{Projects: []ProjectConfig{
 		{Name: "foo", Path: "/code/foo", TicketPrefix: "ABC-"},
 	}}
-	p, created := cfg.FindOrCreate("foo", "/code/foo")
-	if created {
-		t.Error("expected created=false for existing path")
+	p, missing := cfg.FindProjectConfig("foo", "/code/foo")
+	if missing {
+		t.Error("expected missing=false for existing path")
 	}
 	if p.TicketPrefix != "ABC-" {
 		t.Errorf("expected to return existing project, got %+v", p)
 	}
 }
 
-func TestFindOrCreate_ByName(t *testing.T) {
-	cfg := Config{Projects: []Project{
+func TestFindProjectConfigByName(t *testing.T) {
+	cfg := Config{Projects: []ProjectConfig{
 		{Name: "foo", Path: "/old/path", TicketPrefix: "XYZ-"},
 	}}
-	p, created := cfg.FindOrCreate("foo", "/new/path")
-	if created {
-		t.Error("expected created=false for existing name")
+	p, missing := cfg.FindProjectConfig("foo", "/new/path")
+	if missing {
+		t.Error("expected missing=false for existing name")
 	}
 	if p.TicketPrefix != "XYZ-" {
 		t.Errorf("expected to return existing project, got %+v", p)
 	}
 }
 
-func TestFindOrCreate_NewEntry(t *testing.T) {
+func TestFindProjectConfigMissing(t *testing.T) {
 	cfg := Config{}
-	p, created := cfg.FindOrCreate("newproject", "/code/newproject")
-	if !created {
-		t.Error("expected created=true for new project")
+	p, missing := cfg.FindProjectConfig("newproject", "/code/newproject")
+	if !missing {
+		t.Error("expected missing=true for new project")
 	}
-	if p.Name != "newproject" || p.Path != "/code/newproject" {
-		t.Errorf("unexpected project: %+v", p)
-	}
-	if len(cfg.Projects) != 1 {
-		t.Errorf("expected 1 project in config, got %d", len(cfg.Projects))
+	if p.Name != "" || p.Path != "" || p.BaseDir != "" || p.TicketPrefix != "" || p.BranchPrefix != "" {
+		t.Errorf("expected empty project config, got %+v", p)
 	}
 }
 
 func TestSaveAndLoad(t *testing.T) {
 	dir := t.TempDir()
-	origFilePath := FilePath
-	FilePath = func() string { return filepath.Join(dir, "config.yml") }
-	t.Cleanup(func() { FilePath = origFilePath })
+	origConfigPath := ConfigPath
+	ConfigPath = func() string { return filepath.Join(dir, "config.yml") }
+	t.Cleanup(func() { ConfigPath = origConfigPath })
 
 	cfg := Config{
-		BaseDir: "~/.worktrees",
-		Projects: []Project{
-			{Name: "myproject", Path: "/code/myproject", TicketPrefix: "ABC-"},
+		Projects: []ProjectConfig{
+			{Name: "myproject", Path: "/code/myproject", BaseDir: "~/.wtree/myproject", TicketPrefix: "ABC-"},
 		},
 	}
 	if err := cfg.Save(); err != nil {
@@ -137,13 +133,16 @@ func TestSaveAndLoad(t *testing.T) {
 	if loaded.Projects[0].TicketPrefix != "ABC-" {
 		t.Errorf("ticket_prefix = %q, want %q", loaded.Projects[0].TicketPrefix, "ABC-")
 	}
+	if loaded.Projects[0].BaseDir != "~/.wtree/myproject" {
+		t.Errorf("base_dir = %q, want %q", loaded.Projects[0].BaseDir, "~/.wtree/myproject")
+	}
 }
 
 func TestLoad_FileNotExist(t *testing.T) {
 	dir := t.TempDir()
-	origFilePath := FilePath
-	FilePath = func() string { return filepath.Join(dir, "nonexistent.yml") }
-	t.Cleanup(func() { FilePath = origFilePath })
+	origConfigPath := ConfigPath
+	ConfigPath = func() string { return filepath.Join(dir, "nonexistent.yml") }
+	t.Cleanup(func() { ConfigPath = origConfigPath })
 
 	cfg, err := Load()
 	if err != nil {
@@ -151,5 +150,48 @@ func TestLoad_FileNotExist(t *testing.T) {
 	}
 	if len(cfg.Projects) != 0 {
 		t.Errorf("expected empty config, got %+v", cfg)
+	}
+}
+
+func TestLoadOrCreateProjectConfigCreatesDefault(t *testing.T) {
+	dir := t.TempDir()
+	origConfigPath := ConfigPath
+	ConfigPath = func() string { return filepath.Join(dir, "config.yml") }
+	t.Cleanup(func() { ConfigPath = origConfigPath })
+
+	got, err := LoadOrCreateProjectConfig("myproject", "/code/myproject")
+	if err != nil {
+		t.Fatalf("LoadOrCreateProjectConfig() error: %v", err)
+	}
+	if got.Name != "myproject" || got.Path != "/code/myproject" {
+		t.Fatalf("unexpected project config: %+v", got)
+	}
+	if got.BaseDir != "/code/myproject/.wtree" {
+		t.Fatalf("BaseDir = %q, want %q", got.BaseDir, "/code/myproject/.wtree")
+	}
+
+	loaded, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error: %v", err)
+	}
+	if len(loaded.Projects) != 1 {
+		t.Fatalf("expected 1 project, got %d", len(loaded.Projects))
+	}
+}
+
+func TestProjectConfigEffectiveBaseDirUsesDefaultWhenEmpty(t *testing.T) {
+	cfg := ProjectConfig{Path: "/code/myproject"}
+
+	if got := cfg.EffectiveBaseDir(); got != "/code/myproject/.wtree" {
+		t.Fatalf("EffectiveBaseDir() = %q, want %q", got, "/code/myproject/.wtree")
+	}
+}
+
+func TestProjectConfigEffectiveBaseDirExpandsConfiguredValue(t *testing.T) {
+	home, _ := os.UserHomeDir()
+	cfg := ProjectConfig{Path: "/code/myproject", BaseDir: "~/.wtree/myproject"}
+
+	if got := cfg.EffectiveBaseDir(); got != filepath.Join(home, ".wtree", "myproject") {
+		t.Fatalf("EffectiveBaseDir() = %q, want %q", got, filepath.Join(home, ".wtree", "myproject"))
 	}
 }

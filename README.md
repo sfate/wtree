@@ -1,6 +1,6 @@
 # wtree — Git Worktree Helper
 
-A CLI for managing git worktrees organised by ticket reference or arbitrary name. Worktrees are stored in a central directory (`~/.worktrees/<project>/`) and can be listed, created, and cleaned up with simple commands.
+A CLI for managing git worktrees organised by ticket reference or arbitrary name. By default, worktrees are stored in a `.wtree/` subdirectory inside each repository and can be listed, created, and cleaned up with simple commands.
 
 ## Install
 
@@ -45,11 +45,10 @@ On first run inside a git project, wtree automatically adds an entry for that pr
 ```yaml
 # ~/.config/wtree/config.yml
 
-base_dir: ~/.worktrees   # optional — override the default worktree root
-
 projects:
   - name: project-abc
     path: ~/code/project-abc
+    base_dir: ~/.wtree/project-abc   # optional — default is ~/code/project-abc/.wtree
     ticket_prefix: ABC-   # optional — enables automatic branch derivation from refs like ABC-1234
     branch_prefix: ob-    # optional — prepended to ticket prefix: ob- + abc- → ob-abc-1234
     hooks:
@@ -62,11 +61,20 @@ projects:
 ```
 
 **Rules:**
-- `base_dir` defaults to `~/.worktrees` when omitted
+- the YAML root contains `projects` only
+- `base_dir` is optional per project; when omitted it defaults to `<project>/.wtree`
 - `ticket_prefix` is optional; if omitted, `[branch]` must always be passed explicitly
 - `branch_prefix` is optional; only meaningful when `ticket_prefix` is set
 - `hooks` are optional; each entry is a path to an executable script
 - Project `name` and `path` must each be unique across all entries
+
+**Git ignore:**
+
+If you use the default in-project base dir, add `.wtree/` to your repository’s `.gitignore`:
+
+```gitignore
+.wtree/
+```
 
 **Hook arguments:**
 
