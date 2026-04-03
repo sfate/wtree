@@ -41,11 +41,11 @@ func PrintTableTo(w io.Writer, entries []WorktreeEntry) {
 		strings.Repeat("-", wActivity),
 	)
 
-	fmt.Fprintln(w, hr)
-	fmt.Fprintf(w, "| %-*s | %-*s | %-*s |\n", wRef, "Ref", wBranch, "Branch", wActivity, "Last Activity")
-	fmt.Fprintln(w, hr)
+	_, _ = fmt.Fprintln(w, hr)
+	_, _ = fmt.Fprintf(w, "| %-*s | %-*s | %-*s |\n", wRef, "Ref", wBranch, "Branch", wActivity, "Last Activity")
+	_, _ = fmt.Fprintln(w, hr)
 	for _, e := range entries {
-		fmt.Fprintf(w, "| %-*s | %-*s | %-*s |\n", wRef, e.Ref, wBranch, e.Branch, wActivity, e.RelativeAge())
+		_, _ = fmt.Fprintf(w, "| %-*s | %-*s | %-*s |\n", wRef, e.Ref, wBranch, e.Branch, wActivity, e.RelativeAge())
 	}
-	fmt.Fprintln(w, hr)
+	_, _ = fmt.Fprintln(w, hr)
 }

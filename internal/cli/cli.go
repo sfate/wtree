@@ -243,7 +243,7 @@ func (a *App) newManager() (*wtree.Manager, error) {
 	projCfg, created := fileCfg.FindOrCreate(projectName, projectDir)
 	if created {
 		if err := fileCfg.Save(); err != nil {
-			fmt.Fprintf(a.stderr, "Warning: could not save config: %v\n", err)
+			_, _ = fmt.Fprintf(a.stderr, "Warning: could not save config: %v\n", err)
 		}
 		return nil, fmt.Errorf("added project %q to config — please fill in the required fields and re-run", projCfg.Name)
 	}
