@@ -24,6 +24,8 @@ eval "$(wtree --shell-init bash)"
 
 > **Powerlevel10k users:** place the `eval` line **before** the p10k instant prompt block in `~/.zshrc`.
 
+**How it works:** navigation commands (`wtree <ref>`, `wtree --root`) print only the target path to stdout. The shell function captures that output and calls `cd`. All other output (branch names, status messages) goes to stderr and displays in your terminal normally. Non-navigation commands (`--list`, `--delete`, etc.) bypass the wrapper and run directly.
+
 ## Configuration
 
 On first run inside a git project, wtree automatically adds an entry for that project to `~/.config/wtree/config.yml` and exits, prompting you to fill in any required fields.

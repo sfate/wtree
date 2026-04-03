@@ -117,7 +117,7 @@ func runCreate(ref, branch, baseBranch string) {
 	if err != nil {
 		fatal(err.Error())
 	}
-	fmt.Printf("WTREE_CD:%s\n", dir)
+	fmt.Println(dir)
 }
 
 func runDelete(ref string) {
@@ -165,7 +165,7 @@ func runCleanStale() {
 
 func runRoot() {
 	m := newManager()
-	fmt.Printf("WTREE_CD:%s\n", m.ProjectDir())
+	fmt.Println(m.ProjectDir())
 }
 
 func runShellInit(shell string) {
@@ -181,35 +181,35 @@ func runShellInit(shell string) {
 
 const shellInitZsh = `
 function wtree() {
-  local output exit_code dir line
-  output=$(command wtree "$@")
-  exit_code=$?
-  while IFS= read -r line; do
-    if [[ "$line" == WTREE_CD:* ]]; then
-      dir="${line#WTREE_CD:}"
-    else
-      print -- "$line"
-    fi
-  done <<< "$output"
-  [[ -n "$dir" ]] && cd "$dir"
-  return $exit_code
+  case "$1" in
+    --shell-init|-h|--help|--list|--delete|--clean|--clear|--clean-stale)
+      command wtree "$@"
+      ;;
+    *)
+      local result exit_code
+      result=$(command wtree "$@")
+      exit_code=$?
+      [[ -n "$result" ]] && cd "$result"
+      return $exit_code
+      ;;
+  esac
 }
 `
 
 const shellInitBash = `
 function wtree() {
-  local output exit_code dir line
-  output=$(command wtree "$@")
-  exit_code=$?
-  while IFS= read -r line; do
-    if [[ "$line" == WTREE_CD:* ]]; then
-      dir="${line#WTREE_CD:}"
-    else
-      printf '%s\n' "$line"
-    fi
-  done <<< "$output"
-  [[ -n "$dir" ]] && cd "$dir"
-  return $exit_code
+  case "$1" in
+    --shell-init|-h|--help|--list|--delete|--clean|--clear|--clean-stale)
+      command wtree "$@"
+      ;;
+    *)
+      local result exit_code
+      result=$(command wtree "$@")
+      exit_code=$?
+      [[ -n "$result" ]] && cd "$result"
+      return $exit_code
+      ;;
+  esac
 }
 `
 

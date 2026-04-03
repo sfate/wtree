@@ -161,7 +161,7 @@ func (m *Manager) Create(ref, branch, baseBranch string) (dir string, existed bo
 		return "", false, err
 	}
 	if registered {
-		fmt.Println("Worktree already exists.")
+		fmt.Fprintln(os.Stderr, "Worktree already exists.")
 		if m.cfg.PostNavigation != nil {
 			if err := m.cfg.PostNavigation(ref, m.ProjectName(), wtDir); err != nil {
 				return wtDir, true, err
@@ -186,7 +186,7 @@ func (m *Manager) Create(ref, branch, baseBranch string) (dir string, existed bo
 		}
 	}
 
-	fmt.Printf("Using branch name: %s\n", branch)
+	fmt.Fprintf(os.Stderr, "Using branch name: %s\n", branch)
 	if err := gitEnsureBranch(m.projectDir, branch, baseBranch); err != nil {
 		return "", false, err
 	}
