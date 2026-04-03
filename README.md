@@ -2,18 +2,27 @@
 
 A CLI for managing git worktrees organised by ticket reference or arbitrary name. Worktrees are stored in a central directory (`~/.worktrees/<project>/`) and can be listed, created, and cleaned up with simple commands.
 
-Navigation is built-in: `wtree` spawns a new shell session inside the target worktree directory. Exit the shell to return to where you started.
-
 ## Install
 
 ```bash
-# Build from source
-make build
-mv wtree /usr/local/bin/
-
-# Or with go install
 go install github.com/sfate/wtree@latest
 ```
+
+## Shell integration
+
+`wtree` needs shell integration to `cd` into worktree directories. Add to your shell config:
+
+**zsh** (`~/.zshrc`):
+```zsh
+eval "$(wtree --shell-init zsh)"
+```
+
+**bash** (`~/.bashrc`):
+```bash
+eval "$(wtree --shell-init bash)"
+```
+
+> **Powerlevel10k users:** place the `eval` line **before** the p10k instant prompt block in `~/.zshrc`.
 
 ## Configuration
 

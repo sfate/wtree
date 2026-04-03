@@ -23,6 +23,11 @@ func main() {
 	switch args[0] {
 	case "--help", "-h":
 		printHelp()
+	case "--shell-init":
+		if len(args) < 2 {
+			fatal("--shell-init requires a shell name: zsh, bash")
+		}
+		runShellInit(args[1])
 	case "--list":
 		runList()
 	case "--delete":
@@ -112,7 +117,7 @@ func runCreate(ref, branch, baseBranch string) {
 	if err != nil {
 		fatal(err.Error())
 	}
-	navigate(dir)
+	fmt.Printf("WTREE_CD:%s\n", dir)
 }
 
 func runDelete(ref string) {
@@ -160,8 +165,53 @@ func runCleanStale() {
 
 func runRoot() {
 	m := newManager()
-	navigate(m.ProjectDir())
+	fmt.Printf("WTREE_CD:%s\n", m.ProjectDir())
 }
+
+func runShellInit(shell string) {
+	switch shell {
+	case "zsh":
+		fmt.Print(shellInitZsh)
+	case "bash":
+		fmt.Print(shellInitBash)
+	default:
+		fatal(fmt.Sprintf("unsupported shell %q — supported: zsh, bash", shell))
+	}
+}
+
+const shellInitZsh = `
+function wtree() {
+  local output exit_code dir line
+  output=$(command wtree "$@")
+  exit_code=$?
+  while IFS= read -r line; do
+    if [[ "$line" == WTREE_CD:* ]]; then
+      dir="${line#WTREE_CD:}"
+    else
+      print -- "$line"
+    fi
+  done <<< "$output"
+  [[ -n "$dir" ]] && cd "$dir"
+  return $exit_code
+}
+`
+
+const shellInitBash = `
+function wtree() {
+  local output exit_code dir line
+  output=$(command wtree "$@")
+  exit_code=$?
+  while IFS= read -r line; do
+    if [[ "$line" == WTREE_CD:* ]]; then
+      dir="${line#WTREE_CD:}"
+    else
+      printf '%s\n' "$line"
+    fi
+  done <<< "$output"
+  [[ -n "$dir" ]] && cd "$dir"
+  return $exit_code
+}
+`
 
 func runHook(script string, args ...string) error {
 	cmd := exec.Command(script, args...)
@@ -171,26 +221,12 @@ func runHook(script string, args ...string) error {
 	return cmd.Run()
 }
 
-func navigate(dir string) {
-	shell := os.Getenv("SHELL")
-	if shell == "" {
-		shell = "/bin/sh"
-	}
-	fmt.Printf("Switching to: %s\n", dir)
-	cmd := exec.Command(shell)
-	cmd.Dir = dir
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		fatal(err.Error())
-	}
-}
 
 func printHelp() {
 	help := `Git Worktree Helper
 
 Usage:
+  wtree --shell-init <shell>           Print shell integration (zsh, bash)
   wtree <ref> [branch] [base_branch]   Create/switch to worktree
   wtree --list                         List worktrees for project
   wtree --delete <ref>                 Delete worktree by <ref>
@@ -199,11 +235,14 @@ Usage:
   wtree --root                         Navigate to project root
   wtree --help/-h                      Show this help
 
+Shell setup (add to ~/.zshrc):
+  eval "$(wtree --shell-init zsh)"
+
 Examples:
-  wtree ABC-1234                        Auto-detect branch for ticket
-  wtree feature-x my-branch            Create worktree with custom branch
+  wtree ABC-1234                       Auto-detect branch for ticket
+  wtree feature-x my-branch           Create worktree with custom branch
   wtree --list                         Show all worktrees
-  wtree --delete ABC-1234               Remove specific worktree`
+  wtree --delete ABC-1234              Remove specific worktree`
 	fmt.Println(help)
 }
 

@@ -3,6 +3,8 @@ VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev
 LDFLAGS := -ldflags "-X main.version=$(VERSION)"
 BUMP    ?= patch
 
+INSTALL_DIR ?= /usr/local/bin
+
 .PHONY: build lint audit test clean release
 
 build:
