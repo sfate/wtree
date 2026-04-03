@@ -16,7 +16,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	cmd := cli.NewRootCmdWithOptions(cli.Options{
+	cmd := cli.NewRootCmd(cli.Options{
 		Stdin:   os.Stdin,
 		Stdout:  os.Stdout,
 		Stderr:  os.Stderr,
