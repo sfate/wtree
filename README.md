@@ -8,6 +8,18 @@ A CLI for managing git worktrees organised by ticket reference or arbitrary name
 go install github.com/sfate/wtree@latest
 ```
 
+`go install` places the binary in `$(go env GOBIN)` (falling back to `$(go env GOPATH)/bin`). Make sure that directory is in your `PATH`:
+
+```bash
+export PATH="$(go env GOBIN):$PATH"
+```
+
+If you use `asdf` for Go, refresh the shim after installation:
+
+```bash
+asdf reshim golang $(asdf current golang | awk 'NR==2 {print $2}')
+```
+
 ## Shell integration
 
 `wtree` needs shell integration to `cd` into worktree directories. Add to your shell config:
@@ -130,6 +142,14 @@ wtree --help
 wtree -h
 ```
 
+### Version
+
+```bash
+wtree --version
+```
+
+The value comes from the repository [VERSION](/Users/oleksiibobyriev/blackholesun/wtree/VERSION) file by default, and release builds override the embedded value with the same version string.
+
 ## Development
 
 ```bash
@@ -143,4 +163,4 @@ make release BUMP=major  # v1.2.3 → v2.0.0
 make clean       # remove binary and dist/
 ```
 
-`make release` fetches the latest tag, bumps the version, pushes the tag, and cross-compiles binaries into `dist/`.
+`make release` requires a clean worktree, verifies that [VERSION](/Users/oleksiibobyriev/blackholesun/wtree/VERSION) matches the latest tag, bumps the version, commits the `VERSION` change, pushes the commit, and then pushes the new tag.

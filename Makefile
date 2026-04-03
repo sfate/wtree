@@ -1,6 +1,7 @@
 BINARY  := wtree
-VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
-LDFLAGS := -ldflags "-X main.version=$(VERSION)"
+VERSION_FILE := VERSION
+VERSION ?= $(shell cat $(VERSION_FILE) 2>/dev/null || echo "dev")
+LDFLAGS := -ldflags "-X github.com/sfate/wtree/internal/version.Value=$(VERSION)"
 BUMP    ?= patch
 
 INSTALL_DIR ?= /usr/local/bin
@@ -21,8 +22,17 @@ audit:
 
 release:
 	@set -e; \
+	if [ -n "$$(git status --porcelain)" ]; then \
+	  echo "Working tree is not clean. Commit or stash changes before releasing."; \
+	  exit 1; \
+	fi; \
+	CURRENT=$$(cat $(VERSION_FILE) 2>/dev/null || echo "v0.0.0"); \
 	git fetch --tags; \
 	LATEST=$$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0"); \
+	if [ "$$CURRENT" != "$$LATEST" ]; then \
+	  echo "VERSION ($$CURRENT) does not match latest tag ($$LATEST)."; \
+	  exit 1; \
+	fi; \
 	MAJOR=$$(echo $$LATEST | cut -d. -f1 | tr -d v); \
 	MINOR=$$(echo $$LATEST | cut -d. -f2); \
 	PATCH=$$(echo $$LATEST | cut -d. -f3); \
@@ -32,5 +42,9 @@ release:
 	  *)     NEW="v$$MAJOR.$$MINOR.$$((PATCH+1))" ;; \
 	esac; \
 	echo "Latest: $$LATEST  →  Releasing: $$NEW"; \
+	printf '%s\n' "$$NEW" > $(VERSION_FILE); \
+	git add $(VERSION_FILE); \
+	git commit -m "Release $$NEW"; \
 	git tag -a "$$NEW" -m "Release $$NEW"; \
+	git push origin HEAD; \
 	git push origin "$$NEW"; \
