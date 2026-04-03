@@ -2,49 +2,82 @@ package version
 
 import (
 	_ "embed"
+	"fmt"
+	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 
 	"golang.org/x/mod/semver"
 )
 
-// Value is overridden at build time via ldflags for release/install builds.
-var (
-	Value = ""
-)
-
 //go:embed VERSION
-var data string
+var sourceVersion string
+var sourceVersionPath string
 
-// Current returns the active version string.
-func Current() string {
-	if v := strings.TrimSpace(string(data)); v != "" {
-		return normalize(v, true)
-	}
-
-	return "dev"
+type semverImpl struct {
+	currentVersion string
 }
 
-func normalize(v string, dev bool) string {
+func init() {
+	_, filename, _, _ := runtime.Caller(0)
+	sourceVersionPath = filepath.Join(filepath.Dir(filename), "VERSION")
+}
+
+func validate(v string) (string, error) {
+	v = strings.TrimSpace(v)
 	if !semver.IsValid(v) {
-		if dev && !strings.HasSuffix(v, "+dev") {
-			return v + "+dev"
-		}
-		return v
+		return "", fmt.Errorf("invalid semver: %q", v)
 	}
 
-	if !dev {
-		return semver.Canonical(v)
-	}
-
-	return baseVersion(v) + "+dev"
+	return semver.Canonical(v), nil
 }
 
-func baseVersion(v string) string {
-	if prerelease := semver.Prerelease(v); prerelease != "" {
-		v = strings.TrimSuffix(v, prerelease)
+func NewSemver() (*semverImpl, error) {
+	v, err := validate(sourceVersion)
+	if err != nil {
+		return nil, err
 	}
-	if idx := strings.Index(v, "+"); idx >= 0 {
-		v = v[:idx]
+
+	return &semverImpl{
+		currentVersion: v,
+	}, nil
+}
+
+func (s *semverImpl) Current() string {
+	return s.currentVersion
+}
+
+func (s *semverImpl) Bump(bump string) (string, error) {
+	core := strings.TrimPrefix(s.currentVersion, "v")
+
+	var major, minor, patch int
+	if _, err := fmt.Sscanf(core, "%d.%d.%d", &major, &minor, &patch); err != nil {
+		return "", fmt.Errorf("parse semver %q: %w", s.currentVersion, err)
 	}
-	return semver.Canonical(v)
+
+	switch bump {
+	case "major":
+		major++
+		minor = 0
+		patch = 0
+	case "minor":
+		minor++
+		patch = 0
+	case "", "patch":
+		patch++
+	default:
+		return "", fmt.Errorf("unsupported bump type '%q'", bump)
+	}
+
+	return fmt.Sprintf("v%d.%d.%d", major, minor, patch), nil
+}
+
+func (s *semverImpl) Set(v string) error {
+	ver, err := validate(v)
+	if err != nil {
+		return err
+	}
+
+	return os.WriteFile(sourceVersionPath, []byte(ver+"\n"), 0o644)
 }

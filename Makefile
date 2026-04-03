@@ -1,4 +1,6 @@
 BINARY  := wtree
+VERSION_CMD := go run ./internal/version/cmd
+CURRENT_VERSION := $(VERSION_CMD) get
 BUMP    ?= patch
 
 INSTALL_DIR ?= /usr/local/bin
@@ -24,23 +26,16 @@ release:
 	  exit 1; \
 	fi; \
 	git fetch --tags; \
-	LATEST=$$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0"); \
-	if [ "$$VERSION" != "$$LATEST" ]; then \
-	  echo "VERSION ($$VERSION) does not match latest tag ($$LATEST)."; \
+	LATEST_VERSION=$$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0"); \
+	if [ "$$CURRENT_VERSION" != "$$LATEST_VERSION" ]; then \
+	  echo "VERSION ($$CURRENT_VERSION) does not match latest tag ($$LATEST_VERSION)."; \
 	  exit 1; \
 	fi; \
-	MAJOR=$$(echo $$LATEST | cut -d. -f1 | tr -d v); \
-	MINOR=$$(echo $$LATEST | cut -d. -f2); \
-	PATCH=$$(echo $$LATEST | cut -d. -f3); \
-	case "$(BUMP)" in \
-	  major) NEW="v$$((MAJOR+1)).0.0" ;; \
-	  minor) NEW="v$$MAJOR.$$((MINOR+1)).0" ;; \
-	  *)     NEW="v$$MAJOR.$$MINOR.$$((PATCH+1))" ;; \
-	esac; \
-	echo "Latest: $$LATEST  →  Releasing: $$NEW"; \
-	printf '%s\n' "$$NEW" > $(VERSION_FILE); \
-	git add $(VERSION_FILE); \
-	git commit -m "Release $$NEW"; \
-	git tag -a "$$NEW" -m "Release $$NEW"; \
+	NEW_VERSION=$$($(VERSION_CMD) bump $(BUMP)); \
+	echo "Latest: $$LATEST_VERSION  →  Releasing: $$NEW_VERSION"; \
+	$(VERSION_CMD) set "$$NEW_VERSION"; \
+	git add internal/version/VERSION; \
+	git commit -m "chore(deps): bump to $$NEW_VERSION"; \
+	git tag -a "$$NEW_VERSION" -m "chore(deps): bump to $$NEW_VERSION"; \
 	git push origin HEAD; \
-	git push origin "$$NEW"; \
+	git push origin "$$NEW_VERSION"; \

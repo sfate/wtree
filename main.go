@@ -10,11 +10,17 @@ import (
 )
 
 func main() {
+	sVersion, err := version.NewSemver()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %s\n", err.Error())
+		os.Exit(1)
+	}
+
 	cmd := cli.NewRootCmdWithOptions(cli.Options{
 		Stdin:   os.Stdin,
 		Stdout:  os.Stdout,
 		Stderr:  os.Stderr,
-		Version: version.Current(),
+		Version: sVersion.Current(),
 	})
 	if err := cmd.Execute(); err != nil {
 		var exitErr cli.ExitError

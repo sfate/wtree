@@ -2,7 +2,6 @@ package version
 
 import (
 	"os"
-	"path/filepath"
 	"testing"
 )
 
@@ -16,26 +15,50 @@ func TestCurrentUsesInjectedValue(t *testing.T) {
 	}
 }
 
-func TestCurrentUsesVersionFileWithDevSuffix(t *testing.T) {
+func TestSourceReadsCanonicalVersion(t *testing.T) {
+	withVersionFile(t, "v1.2.3\n")
+
+	got, err := Source()
+	if err != nil {
+		t.Fatalf("Source() returned error: %v", err)
+	}
+	if got != "v1.2.3" {
+		t.Fatalf("Source() = %q, want %q", got, "v1.2.3")
+	}
+}
+
+func TestSetSourceWritesCanonicalVersion(t *testing.T) {
+	withVersionFile(t, "v1.2.3\n")
+
+	if err := SetSource("v2.3.4+buildmeta"); err != nil {
+		t.Fatalf("SetSource() returned error: %v", err)
+	}
+
+	data, err := os.ReadFile(filePath())
+	if err != nil {
+		t.Fatalf("ReadFile() returned error: %v", err)
+	}
+	if got := string(data); got != "v2.3.4\n" {
+		t.Fatalf("VERSION file = %q, want %q", got, "v2.3.4\n")
+	}
+}
+
+func TestCurrentUsesVersionFileWithBuildDev(t *testing.T) {
 	orig := Value
 	Value = ""
 	t.Cleanup(func() { Value = orig })
+	withVersionFile(t, "v1.2.3\n")
 
-	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "VERSION"), []byte("v1.2.3\n"), 0o644); err != nil {
-		t.Fatalf("WriteFile() failed: %v", err)
+	if got := Current(); got != "v1.2.3+dev" {
+		t.Fatalf("Current() = %q, want %q", got, "v1.2.3+dev")
 	}
+}
 
-	cwd, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("Getwd() failed: %v", err)
-	}
-	if err := os.Chdir(dir); err != nil {
-		t.Fatalf("Chdir() failed: %v", err)
-	}
-	t.Cleanup(func() {
-		_ = os.Chdir(cwd)
-	})
+func TestCurrentReplacesPrereleaseFromVersionFileWithBuildDev(t *testing.T) {
+	orig := Value
+	Value = ""
+	t.Cleanup(func() { Value = orig })
+	withVersionFile(t, "v1.2.3-rc.1\n")
 
 	if got := Current(); got != "v1.2.3+dev" {
 		t.Fatalf("Current() = %q, want %q", got, "v1.2.3+dev")
@@ -52,28 +75,39 @@ func TestCurrentCanonicalizesInjectedSemver(t *testing.T) {
 	}
 }
 
-func TestCurrentReplacesPrereleaseFromVersionFileWithBuildDev(t *testing.T) {
-	orig := Value
-	Value = ""
-	t.Cleanup(func() { Value = orig })
-
-	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "VERSION"), []byte("v1.2.3-rc.1\n"), 0o644); err != nil {
-		t.Fatalf("WriteFile() failed: %v", err)
+func TestBump(t *testing.T) {
+	tests := []struct {
+		bump string
+		want string
+	}{
+		{bump: "patch", want: "v1.2.4"},
+		{bump: "minor", want: "v1.3.0"},
+		{bump: "major", want: "v2.0.0"},
 	}
 
-	cwd, err := os.Getwd()
+	for _, tt := range tests {
+		got, err := Bump("v1.2.3", tt.bump)
+		if err != nil {
+			t.Fatalf("Bump(%q) returned error: %v", tt.bump, err)
+		}
+		if got != tt.want {
+			t.Fatalf("Bump(%q) = %q, want %q", tt.bump, got, tt.want)
+		}
+	}
+}
+
+func withVersionFile(t *testing.T, contents string) {
+	t.Helper()
+
+	orig, err := os.ReadFile(filePath())
 	if err != nil {
-		t.Fatalf("Getwd() failed: %v", err)
-	}
-	if err := os.Chdir(dir); err != nil {
-		t.Fatalf("Chdir() failed: %v", err)
+		t.Fatalf("ReadFile() returned error: %v", err)
 	}
 	t.Cleanup(func() {
-		_ = os.Chdir(cwd)
+		_ = os.WriteFile(filePath(), orig, 0o644)
 	})
 
-	if got := Current(); got != "v1.2.3+dev" {
-		t.Fatalf("Current() = %q, want %q", got, "v1.2.3+dev")
+	if err := os.WriteFile(filePath(), []byte(contents), 0o644); err != nil {
+		t.Fatalf("WriteFile() returned error: %v", err)
 	}
 }
