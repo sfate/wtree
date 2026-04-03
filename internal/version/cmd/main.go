@@ -14,7 +14,7 @@ func main() {
 
 	sVersion, err := version.NewSemver()
 	if err != nil {
-		fail(fmt.Sprintf("failed to load version: %w", err.Error()))
+		fail(fmt.Sprintf("failed to load version: %v", err))
 	}
 
 	switch os.Args[1] {
