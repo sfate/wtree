@@ -1,4 +1,4 @@
-package wtree
+package tools
 
 import (
 	"testing"
@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestRelativeTime(t *testing.T) {
+func TestRelative(t *testing.T) {
 	tests := []struct {
 		name     string
 		offset   time.Duration
@@ -26,16 +26,16 @@ func TestRelativeTime(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			past := time.Now().Add(-tt.offset)
-			require.Equal(t, tt.expected, relativeTime(past))
+			require.Equal(t, tt.expected, TimeRelative(past))
 		})
 	}
 
 	t.Run("zero time", func(t *testing.T) {
-		require.Equal(t, "unknown", relativeTime(time.Time{}))
+		require.Equal(t, "unknown", TimeRelative(time.Time{}))
 	})
 }
 
-func TestPluralize(t *testing.T) {
+func TestTimePluralize(t *testing.T) {
 	tests := []struct {
 		n        int
 		unit     string
@@ -48,7 +48,7 @@ func TestPluralize(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.expected, func(t *testing.T) {
-			require.Equal(t, tt.expected, pluralize(tt.n, tt.unit))
+			require.Equal(t, tt.expected, timePluralize(tt.n, tt.unit))
 		})
 	}
 }

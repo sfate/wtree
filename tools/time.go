@@ -1,12 +1,12 @@
-package wtree
+package tools
 
 import (
 	"fmt"
 	"time"
 )
 
-// relativeTime formats a timestamp as a human-readable relative string.
-func relativeTime(t time.Time) string {
+// Relative formats a timestamp as a human-readable relative string.
+func TimeRelative(t time.Time) string {
 	if t.IsZero() {
 		return "unknown"
 	}
@@ -26,23 +26,23 @@ func relativeTime(t time.Time) string {
 
 	switch {
 	case seconds < 60:
-		return pluralize(seconds, "second") + " ago"
+		return timePluralize(seconds, "second") + " ago"
 	case minutes < 60:
-		return pluralize(minutes, "minute") + " ago"
+		return timePluralize(minutes, "minute") + " ago"
 	case hours < 24:
-		return pluralize(hours, "hour") + " ago"
+		return timePluralize(hours, "hour") + " ago"
 	case days < 14:
-		return pluralize(days, "day") + " ago"
+		return timePluralize(days, "day") + " ago"
 	case weeks < 9:
-		return pluralize(weeks, "week") + " ago"
+		return timePluralize(weeks, "week") + " ago"
 	case months < 12:
-		return pluralize(months, "month") + " ago"
+		return timePluralize(months, "month") + " ago"
 	default:
-		return pluralize(years, "year") + " ago"
+		return timePluralize(years, "year") + " ago"
 	}
 }
 
-func pluralize(n int, unit string) string {
+func timePluralize(n int, unit string) string {
 	if n == 1 {
 		return fmt.Sprintf("%d %s", n, unit)
 	}

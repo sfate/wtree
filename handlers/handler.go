@@ -100,20 +100,24 @@ func (h *Handler) newManager() (*wtreepkg.Manager, error) {
 	if err != nil {
 		return nil, fmt.Errorf("config: %w", err)
 	}
-	cfg.BaseDir = cfg.EffectiveBaseDir()
+	managerCfg := wtreepkg.Config{
+		BaseDir:      cfg.EffectiveBaseDir(),
+		TicketPrefix: cfg.TicketPrefix,
+		BranchPrefix: cfg.BranchPrefix,
+	}
 	if script := cfg.Hooks.ExpandedPostNavigation(); script != "" {
-		cfg.PostNavigation = func(ref, projectName, worktreeDir string) error {
+		managerCfg.PostNavigation = func(ref, projectName, worktreeDir string) error {
 			return h.runHook(script, ref, projectName, worktreeDir)
 		}
 	}
 	if script := cfg.Hooks.ExpandedPostDelete(); script != "" {
-		cfg.PostDelete = func(ref string) error {
+		managerCfg.PostDelete = func(ref string) error {
 			return h.runHook(script, ref)
 		}
 	}
 
-	return wtreepkg.NewManager(projectDir, cfg, wtreepkg.ManagerDeps{
-		UI: h.ui,
+	return wtreepkg.NewManager(projectDir, managerCfg, wtreepkg.ManagerDeps{
+		Logger: h.ui,
 	}), nil
 }
 

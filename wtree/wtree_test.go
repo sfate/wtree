@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sfate/wtree/config"
 	"github.com/stretchr/testify/require"
 )
 
@@ -96,10 +95,12 @@ func TestWorktreeEntryRelativeAge(t *testing.T) {
 }
 
 func TestDefaultProjectConfig(t *testing.T) {
-	cfg := config.DefaultProjectConfig("myproject", "/code/myproject")
+	cfg := Config{
+		BaseDir:      "/code/myproject/.wtree",
+		TicketPrefix: "ABC-",
+		BranchPrefix: "ob-",
+	}
 
-	require.Equal(t, "myproject", cfg.Name)
-	require.Equal(t, "/code/myproject", cfg.Path)
 	require.Equal(t, "/code/myproject/.wtree", cfg.BaseDir)
 	require.Equal(t, "ABC-", cfg.TicketPrefix)
 	require.Equal(t, "ob-", cfg.BranchPrefix)
@@ -107,7 +108,11 @@ func TestDefaultProjectConfig(t *testing.T) {
 
 func TestDeriveBranchErrorPath(t *testing.T) {
 	projectDir := t.TempDir()
-	m := NewManager(projectDir, config.DefaultProjectConfig("repo", projectDir), ManagerDeps{
+	m := NewManager(projectDir, Config{
+		BaseDir:      filepath.Join(projectDir, ".wtree"),
+		TicketPrefix: "ABC-",
+		BranchPrefix: "ob-",
+	}, ManagerDeps{
 		Git: &fakeGitClient{},
 	})
 
@@ -119,7 +124,11 @@ func TestDeriveBranchErrorPath(t *testing.T) {
 
 func TestDeriveBranchHappyPath(t *testing.T) {
 	projectDir := t.TempDir()
-	m := NewManager(projectDir, config.DefaultProjectConfig("repo", projectDir), ManagerDeps{
+	m := NewManager(projectDir, Config{
+		BaseDir:      filepath.Join(projectDir, ".wtree"),
+		TicketPrefix: "ABC-",
+		BranchPrefix: "ob-",
+	}, ManagerDeps{
 		Git: &fakeGitClient{},
 	})
 
@@ -131,7 +140,11 @@ func TestDeriveBranchHappyPath(t *testing.T) {
 
 func TestDeriveBranchUsesExactBranchMatch(t *testing.T) {
 	projectDir := t.TempDir()
-	m := NewManager(projectDir, config.DefaultProjectConfig("repo", projectDir), ManagerDeps{
+	m := NewManager(projectDir, Config{
+		BaseDir:      filepath.Join(projectDir, ".wtree"),
+		TicketPrefix: "ABC-",
+		BranchPrefix: "ob-",
+	}, ManagerDeps{
 		Git: &fakeGitClient{
 			findBranch: map[string]string{
 				"ob-abc-1234": "ob-abc-1234",
@@ -156,9 +169,7 @@ func TestCleanReturnsJoinedErrors(t *testing.T) {
 			filepath.Join(baseDir, "ref-b"): errors.New("remove failed"),
 		},
 	}
-	m := NewManager(projectDir, config.ProjectConfig{
-		Name:    "repo",
-		Path:    projectDir,
+	m := NewManager(projectDir, Config{
 		BaseDir: baseDir,
 		PostDelete: func(ref string) error {
 			if ref == "ref-a" {
@@ -167,8 +178,8 @@ func TestCleanReturnsJoinedErrors(t *testing.T) {
 			return nil
 		},
 	}, ManagerDeps{
-		Git: gitClient,
-		UI:  NewUI(nil, &out, &out),
+		Git:    gitClient,
+		Logger: NewUI(nil, &out, &out),
 	})
 
 	err := m.Clean()
@@ -186,9 +197,7 @@ func TestDeleteEntriesReturnsJoinedErrors(t *testing.T) {
 			filepath.Join(baseDir, "ref-b"): errors.New("remove failed"),
 		},
 	}
-	m := NewManager(projectDir, config.ProjectConfig{
-		Name:    "repo",
-		Path:    projectDir,
+	m := NewManager(projectDir, Config{
 		BaseDir: baseDir,
 		PostDelete: func(ref string) error {
 			if ref == "ref-a" {
@@ -197,8 +206,8 @@ func TestDeleteEntriesReturnsJoinedErrors(t *testing.T) {
 			return nil
 		},
 	}, ManagerDeps{
-		Git: gitClient,
-		UI:  NewUI(nil, &out, &out),
+		Git:    gitClient,
+		Logger: NewUI(nil, &out, &out),
 	})
 
 	err := m.DeleteEntries([]WorktreeEntry{
@@ -214,15 +223,13 @@ func TestCreatePropagatesBranchExistsError(t *testing.T) {
 	projectDir := t.TempDir()
 	baseDir := filepath.Join(projectDir, ".wtree")
 	gitClient := &branchExistsErrorGit{err: errors.New("branch lookup failed")}
-	m := NewManager(projectDir, config.ProjectConfig{
-		Name:         "repo",
-		Path:         projectDir,
+	m := NewManager(projectDir, Config{
 		BaseDir:      baseDir,
 		TicketPrefix: "ABC-",
 		BranchPrefix: "ob-",
 	}, ManagerDeps{
-		Git: gitClient,
-		UI:  NewUI(nil, &bytes.Buffer{}, &bytes.Buffer{}),
+		Git:    gitClient,
+		Logger: NewUI(nil, &bytes.Buffer{}, &bytes.Buffer{}),
 	})
 
 	_, _, err := m.Create("ABC-1234", "", "")
