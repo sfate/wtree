@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
 func captureStdout(fn func()) string {
@@ -28,22 +30,16 @@ func TestPrintTableEmpty(t *testing.T) {
 
 	lines := strings.Split(strings.TrimRight(output, "\n"), "\n")
 	// Empty table: top separator, header row, middle separator, bottom separator = 4 lines
-	if len(lines) != 4 {
-		t.Errorf("expected 4 lines (3 separators + 1 header), got %d: %q", len(lines), output)
-	}
+	require.Len(t, lines, 4)
 
 	// First and last lines should be separator lines starting with +-
-	if !strings.HasPrefix(lines[0], "+-") {
-		t.Errorf("first line should be a separator, got %q", lines[0])
-	}
-	if !strings.HasPrefix(lines[len(lines)-1], "+-") {
-		t.Errorf("last line should be a separator, got %q", lines[len(lines)-1])
-	}
+	require.True(t, strings.HasPrefix(lines[0], "+-"))
+	require.True(t, strings.HasPrefix(lines[len(lines)-1], "+-"))
 
 	// Second line should be the header
-	if !strings.Contains(lines[1], "Ref") || !strings.Contains(lines[1], "Branch") || !strings.Contains(lines[1], "Last Activity") {
-		t.Errorf("header line missing expected columns, got %q", lines[1])
-	}
+	require.Contains(t, lines[1], "Ref")
+	require.Contains(t, lines[1], "Branch")
+	require.Contains(t, lines[1], "Last Activity")
 }
 
 func TestPrintTableWithEntries(t *testing.T) {
@@ -64,16 +60,8 @@ func TestPrintTableWithEntries(t *testing.T) {
 		PrintTable(entries)
 	})
 
-	if !strings.Contains(output, "ABC-1234") {
-		t.Errorf("output should contain ref ABC-1234, got %q", output)
-	}
-	if !strings.Contains(output, "ob-abc-1234") {
-		t.Errorf("output should contain branch ob-abc-1234, got %q", output)
-	}
-	if !strings.Contains(output, "ABC-5678") {
-		t.Errorf("output should contain ref ABC-5678, got %q", output)
-	}
-	if !strings.Contains(output, "ob-abc-5678") {
-		t.Errorf("output should contain branch ob-abc-5678, got %q", output)
-	}
+	require.Contains(t, output, "ABC-1234")
+	require.Contains(t, output, "ob-abc-1234")
+	require.Contains(t, output, "ABC-5678")
+	require.Contains(t, output, "ob-abc-5678")
 }

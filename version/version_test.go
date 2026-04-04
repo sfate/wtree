@@ -3,26 +3,23 @@ package version
 import (
 	"os"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestNewSemverCurrent(t *testing.T) {
 	withSourceVersion(t, "v1.2.3\n")
 
 	v, err := NewSemver()
-	if err != nil {
-		t.Fatalf("NewSemver() returned error: %v", err)
-	}
-	if got := v.Current(); got != "v1.2.3" {
-		t.Fatalf("Current() = %q, want %q", got, "v1.2.3")
-	}
+	require.NoError(t, err)
+	require.Equal(t, "v1.2.3", v.Current())
 }
 
 func TestNewSemverRejectsInvalidVersion(t *testing.T) {
 	withSourceVersion(t, "not-a-version\n")
 
-	if _, err := NewSemver(); err == nil {
-		t.Fatal("expected error for invalid VERSION")
-	}
+	_, err := NewSemver()
+	require.Error(t, err)
 }
 
 func TestSetWritesCanonicalVersion(t *testing.T) {
@@ -30,21 +27,13 @@ func TestSetWritesCanonicalVersion(t *testing.T) {
 	withVersionFileBackup(t)
 
 	v, err := NewSemver()
-	if err != nil {
-		t.Fatalf("NewSemver() returned error: %v", err)
-	}
+	require.NoError(t, err)
 
-	if err := v.Set("v2.3.4+buildmeta"); err != nil {
-		t.Fatalf("Set() returned error: %v", err)
-	}
+	require.NoError(t, v.Set("v2.3.4+buildmeta"))
 
 	data, err := os.ReadFile(sourceVersionPath)
-	if err != nil {
-		t.Fatalf("ReadFile() returned error: %v", err)
-	}
-	if got := string(data); got != "v2.3.4\n" {
-		t.Fatalf("VERSION file = %q, want %q", got, "v2.3.4\n")
-	}
+	require.NoError(t, err)
+	require.Equal(t, "v2.3.4\n", string(data))
 }
 
 func TestBump(t *testing.T) {
@@ -61,17 +50,11 @@ func TestBump(t *testing.T) {
 		withSourceVersion(t, "v1.2.3\n")
 
 		v, err := NewSemver()
-		if err != nil {
-			t.Fatalf("NewSemver() returned error: %v", err)
-		}
+		require.NoError(t, err)
 
 		got, err := v.Bump(tt.bump)
-		if err != nil {
-			t.Fatalf("Bump(%q) returned error: %v", tt.bump, err)
-		}
-		if got != tt.want {
-			t.Fatalf("Bump(%q) = %q, want %q", tt.bump, got, tt.want)
-		}
+		require.NoError(t, err)
+		require.Equal(t, tt.want, got)
 	}
 }
 
@@ -79,13 +62,10 @@ func TestBumpRejectsUnsupportedType(t *testing.T) {
 	withSourceVersion(t, "v1.2.3\n")
 
 	v, err := NewSemver()
-	if err != nil {
-		t.Fatalf("NewSemver() returned error: %v", err)
-	}
+	require.NoError(t, err)
 
-	if _, err := v.Bump("weird"); err == nil {
-		t.Fatal("expected error for unsupported bump type")
-	}
+	_, err = v.Bump("weird")
+	require.Error(t, err)
 }
 
 func withSourceVersion(t *testing.T, contents string) {
@@ -100,9 +80,7 @@ func withSourceVersion(t *testing.T, contents string) {
 func withVersionFileBackup(t *testing.T) {
 	t.Helper()
 	orig, err := os.ReadFile(sourceVersionPath)
-	if err != nil {
-		t.Fatalf("ReadFile() returned error: %v", err)
-	}
+	require.NoError(t, err)
 	t.Cleanup(func() {
 		_ = os.WriteFile(sourceVersionPath, orig, 0o644)
 	})
