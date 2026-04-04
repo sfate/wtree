@@ -1,13 +1,33 @@
 package git
 
 import (
+	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 )
+
+type Client interface {
+	CurrentBranch(dir string) (string, error)
+	LastCommitTime(dir, branch string) (time.Time, error)
+	BaseBranch(dir string) (string, error)
+	FindBranch(dir, branch string) (string, error)
+	BranchExists(dir, branch string) (bool, error)
+	EnsureBranch(dir, branch, baseBranch string) error
+	WorktreeRegistered(projectDir, worktreeDir string) (bool, error)
+	WorktreeAdd(projectDir, worktreeDir, branch string) error
+	WorktreeRemove(projectDir, worktreeDir string) error
+}
+
+type CLI struct{}
+
+func NewClient() Client {
+	return CLI{}
+}
 
 // Run executes a git command in the given directory and returns trimmed stdout.
 func Run(dir string, args ...string) (string, error) {
@@ -33,12 +53,12 @@ func FindRoot() (string, error) {
 }
 
 // CurrentBranch returns the current branch name for the repo at dir.
-func CurrentBranch(dir string) (string, error) {
+func (CLI) CurrentBranch(dir string) (string, error) {
 	return Run(dir, "branch", "--show-current")
 }
 
 // LastCommitTime returns the time of the last commit on the given branch.
-func LastCommitTime(dir, branch string) (time.Time, error) {
+func (CLI) LastCommitTime(dir, branch string) (time.Time, error) {
 	out, err := Run(dir, "log", "-1", "--format=%ct", branch)
 	if err != nil {
 		return time.Time{}, err
@@ -51,7 +71,7 @@ func LastCommitTime(dir, branch string) (time.Time, error) {
 }
 
 // BaseBranch returns the default branch name (e.g. main, master) from origin/HEAD.
-func BaseBranch(dir string) (string, error) {
+func (CLI) BaseBranch(dir string) (string, error) {
 	out, err := Run(dir, "symbolic-ref", "refs/remotes/origin/HEAD")
 	if err != nil {
 		return "", fmt.Errorf("cannot determine base branch: %w", err)
@@ -60,62 +80,69 @@ func BaseBranch(dir string) (string, error) {
 	return parts[len(parts)-1], nil
 }
 
-// FindBranch searches local branch refs for the first branch matching pattern.
-// Returns the full branch name or empty string if not found.
-func FindBranch(dir, pattern string) (string, error) {
-	out, err := Run(dir, "show-ref", "--heads")
+// FindBranch returns the full branch name when an exact local branch exists.
+func (c CLI) FindBranch(dir, branch string) (string, error) {
+	exists, err := c.BranchExists(dir, branch)
 	if err != nil {
-		return "", nil
+		return "", err
 	}
-	for _, line := range strings.Split(out, "\n") {
-		line = strings.TrimSpace(line)
-		if line == "" {
-			continue
-		}
-		fields := strings.Fields(line)
-		if len(fields) < 2 {
-			continue
-		}
-		ref := strings.TrimPrefix(fields[1], "refs/heads/")
-		if strings.Contains(ref, pattern) {
-			return ref, nil
-		}
+	if exists {
+		return branch, nil
 	}
 	return "", nil
 }
 
-// BranchExists returns true if a local branch matching the name exists.
-func BranchExists(dir, branch string) bool {
-	out, _ := Run(dir, "show-ref", "--heads")
-	for _, line := range strings.Split(out, "\n") {
-		fields := strings.Fields(strings.TrimSpace(line))
-		if len(fields) >= 2 {
-			ref := strings.TrimPrefix(fields[1], "refs/heads/")
-			if strings.Contains(ref, branch) {
-				return true
-			}
-		}
+// BranchExists returns true if a local branch with the exact name exists.
+func (CLI) BranchExists(dir, branch string) (bool, error) {
+	if branch == "" {
+		return false, nil
 	}
-	return false
+	cmd := exec.Command("git", "show-ref", "--verify", "--quiet", "refs/heads/"+branch)
+	cmd.Dir = dir
+	err := cmd.Run()
+	if err == nil {
+		return true, nil
+	}
+
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) && exitErr.ExitCode() == 1 {
+		return false, nil
+	}
+	return false, err
 }
 
 // EnsureBranch creates the branch from baseBranch if it does not exist.
-func EnsureBranch(dir, branch, baseBranch string) error {
-	if BranchExists(dir, branch) {
+func (c CLI) EnsureBranch(dir, branch, baseBranch string) error {
+	exists, err := c.BranchExists(dir, branch)
+	if err != nil {
+		return err
+	}
+	if exists {
 		return nil
 	}
-	_, err := Run(dir, "branch", branch, baseBranch)
+	_, err = Run(dir, "branch", branch, baseBranch)
 	return err
 }
 
 // WorktreeRegistered checks whether worktreeDir is already registered as a worktree.
-func WorktreeRegistered(projectDir, worktreeDir string) (bool, error) {
-	out, err := Run(projectDir, "worktree", "list")
+func (CLI) WorktreeRegistered(projectDir, worktreeDir string) (bool, error) {
+	out, err := Run(projectDir, "worktree", "list", "--porcelain")
+	if err != nil {
+		return false, err
+	}
+	target, err := normalizePath(worktreeDir)
 	if err != nil {
 		return false, err
 	}
 	for _, line := range strings.Split(out, "\n") {
-		if strings.Contains(line, worktreeDir) {
+		if !strings.HasPrefix(line, "worktree ") {
+			continue
+		}
+		path, err := normalizePath(strings.TrimPrefix(line, "worktree "))
+		if err != nil {
+			return false, err
+		}
+		if path == target {
 			return true, nil
 		}
 	}
@@ -123,13 +150,28 @@ func WorktreeRegistered(projectDir, worktreeDir string) (bool, error) {
 }
 
 // WorktreeAdd adds a new worktree at worktreeDir for the given branch.
-func WorktreeAdd(projectDir, worktreeDir, branch string) error {
+func (CLI) WorktreeAdd(projectDir, worktreeDir, branch string) error {
 	_, err := Run(projectDir, "worktree", "add", "--force", worktreeDir, branch)
 	return err
 }
 
 // WorktreeRemove removes the worktree at worktreeDir.
-func WorktreeRemove(projectDir, worktreeDir string) error {
+func (CLI) WorktreeRemove(projectDir, worktreeDir string) error {
 	_, err := Run(projectDir, "worktree", "remove", worktreeDir, "--force")
 	return err
+}
+
+func normalizePath(p string) (string, error) {
+	abs, err := filepath.Abs(p)
+	if err != nil {
+		return "", err
+	}
+	resolved, err := filepath.EvalSymlinks(abs)
+	if err == nil {
+		return resolved, nil
+	}
+	if os.IsNotExist(err) {
+		return filepath.Clean(abs), nil
+	}
+	return "", err
 }

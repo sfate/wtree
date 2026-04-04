@@ -8,9 +8,7 @@ import (
 	wtreepkg "github.com/sfate/wtree/wtree"
 )
 
-type CleanStaleService struct {
-	OperationServiceImpl
-}
+type CleanStaleService struct{}
 
 func NewCleanStaleService() OperationService {
 	return &CleanStaleService{}

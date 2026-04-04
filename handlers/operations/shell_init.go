@@ -11,9 +11,7 @@ var shellInitBash string
 //go:embed shell_init_zsh.sh
 var shellInitZsh string
 
-type ShellInitService struct {
-	OperationServiceImpl
-}
+type ShellInitService struct{}
 
 func NewShellInitService() OperationService {
 	return &ShellInitService{}

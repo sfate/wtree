@@ -5,9 +5,7 @@ import (
 	"strings"
 )
 
-type CleanService struct {
-	OperationServiceImpl
-}
+type CleanService struct{}
 
 func NewCleanService() OperationService {
 	return &CleanService{}

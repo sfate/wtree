@@ -1,8 +1,6 @@
 package operations
 
-type CreateService struct {
-	OperationServiceImpl
-}
+type CreateService struct{}
 
 func NewCreateService() OperationService {
 	return &CreateService{}

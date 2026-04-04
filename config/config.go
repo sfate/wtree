@@ -99,8 +99,8 @@ func (c *Config) Save() error {
 	return os.WriteFile(p, data, 0o644)
 }
 
-// FindProjectConfig returns the project config matching projectDir (by path, then by name).
-func (c *Config) FindProjectConfig(name, projectDir string) (ProjectConfig, bool) {
+// FindProjectConfig returns the project config matching projectDir.
+func (c *Config) FindProjectConfig(projectDir string) (ProjectConfig, bool) {
 	abs := expandHome(projectDir)
 
 	for _, p := range c.Projects {
@@ -108,21 +108,16 @@ func (c *Config) FindProjectConfig(name, projectDir string) (ProjectConfig, bool
 			return p, false
 		}
 	}
-	for _, p := range c.Projects {
-		if p.Name == name {
-			return p, false
-		}
-	}
 	return ProjectConfig{}, true
 }
 
 // FindProjectConfig reads the config file and returns the matching project config.
-func FindProjectConfig(name, projectDir string) (ProjectConfig, bool, error) {
+func FindProjectConfig(projectDir string) (ProjectConfig, bool, error) {
 	cfg, err := Load()
 	if err != nil {
 		return ProjectConfig{}, false, err
 	}
-	projectCfg, missing := cfg.FindProjectConfig(name, projectDir)
+	projectCfg, missing := cfg.FindProjectConfig(projectDir)
 	return projectCfg, !missing, nil
 }
 
@@ -134,7 +129,7 @@ func LoadOrCreateProjectConfig(name, projectDir string) (ProjectConfig, error) {
 		return ProjectConfig{}, err
 	}
 
-	projectCfg, missing := cfg.FindProjectConfig(name, projectDir)
+	projectCfg, missing := cfg.FindProjectConfig(projectDir)
 	if !missing {
 		return projectCfg, nil
 	}
@@ -155,14 +150,8 @@ var ConfigPath = func() string {
 }
 
 func (c *Config) validate() error {
-	names := make(map[string]struct{}, len(c.Projects))
 	paths := make(map[string]struct{}, len(c.Projects))
 	for _, p := range c.Projects {
-		if _, dup := names[p.Name]; dup {
-			return fmt.Errorf("config: duplicate project name %q", p.Name)
-		}
-		names[p.Name] = struct{}{}
-
 		abs := expandHome(p.Path)
 		if _, dup := paths[abs]; dup {
 			return fmt.Errorf("config: duplicate project path %q", p.Path)

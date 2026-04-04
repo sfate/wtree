@@ -2,9 +2,7 @@ package operations
 
 import wtreepkg "github.com/sfate/wtree/wtree"
 
-type ListService struct {
-	OperationServiceImpl
-}
+type ListService struct{}
 
 func NewListService() OperationService {
 	return &ListService{}

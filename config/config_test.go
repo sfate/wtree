@@ -22,14 +22,12 @@ func TestExpandHome(t *testing.T) {
 	}
 }
 
-func TestValidate_DuplicateName(t *testing.T) {
+func TestValidate_AllowsDuplicateName(t *testing.T) {
 	cfg := Config{Projects: []ProjectConfig{
 		{Name: "foo", Path: "/a"},
 		{Name: "foo", Path: "/b"},
 	}}
-	err := cfg.validate()
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "foo")
+	require.NoError(t, cfg.validate())
 }
 
 func TestValidate_DuplicatePath(t *testing.T) {
@@ -63,23 +61,22 @@ func TestFindProjectConfigByPath(t *testing.T) {
 	cfg := Config{Projects: []ProjectConfig{
 		{Name: "foo", Path: "/code/foo", TicketPrefix: "ABC-"},
 	}}
-	p, missing := cfg.FindProjectConfig("foo", "/code/foo")
+	p, missing := cfg.FindProjectConfig("/code/foo")
 	require.False(t, missing)
 	require.Equal(t, "ABC-", p.TicketPrefix)
 }
 
-func TestFindProjectConfigByName(t *testing.T) {
+func TestFindProjectConfigDoesNotFallbackByName(t *testing.T) {
 	cfg := Config{Projects: []ProjectConfig{
 		{Name: "foo", Path: "/old/path", TicketPrefix: "XYZ-"},
 	}}
-	p, missing := cfg.FindProjectConfig("foo", "/new/path")
-	require.False(t, missing)
-	require.Equal(t, "XYZ-", p.TicketPrefix)
+	_, missing := cfg.FindProjectConfig("/new/path")
+	require.True(t, missing)
 }
 
 func TestFindProjectConfigMissing(t *testing.T) {
 	cfg := Config{}
-	p, missing := cfg.FindProjectConfig("newproject", "/code/newproject")
+	p, missing := cfg.FindProjectConfig("/code/newproject")
 	require.True(t, missing)
 	require.Equal(t, ProjectConfig{}, ProjectConfig{
 		Name:         p.Name,
@@ -137,6 +134,26 @@ func TestLoadOrCreateProjectConfigCreatesDefault(t *testing.T) {
 	loaded, err := Load()
 	require.NoError(t, err)
 	require.Len(t, loaded.Projects, 1)
+}
+
+func TestLoadOrCreateProjectConfigSameNameDifferentPathCreatesSeparateEntries(t *testing.T) {
+	dir := t.TempDir()
+	origConfigPath := ConfigPath
+	ConfigPath = func() string { return filepath.Join(dir, "config.yml") }
+	t.Cleanup(func() { ConfigPath = origConfigPath })
+
+	first, err := LoadOrCreateProjectConfig("api", "/code/team-a/api")
+	require.NoError(t, err)
+
+	second, err := LoadOrCreateProjectConfig("api", "/code/team-b/api")
+	require.NoError(t, err)
+
+	require.Equal(t, "/code/team-a/api", first.Path)
+	require.Equal(t, "/code/team-b/api", second.Path)
+
+	loaded, err := Load()
+	require.NoError(t, err)
+	require.Len(t, loaded.Projects, 2)
 }
 
 func TestProjectConfigEffectiveBaseDirUsesDefaultWhenEmpty(t *testing.T) {

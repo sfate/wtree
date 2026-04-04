@@ -1,8 +1,6 @@
 package operations
 
-type RootService struct {
-	OperationServiceImpl
-}
+type RootService struct{}
 
 func NewRootService() OperationService {
 	return &RootService{}

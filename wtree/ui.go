@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"io"
 	"os"
+
+	gitpkg "github.com/sfate/wtree/git"
 )
 
 // UI carries stdin/stdout/stderr for CLI-facing interactions.
@@ -53,5 +55,6 @@ func (u *UI) Errorf(format string, args ...any) {
 
 // ManagerDeps holds optional runtime dependencies for Manager.
 type ManagerDeps struct {
-	UI *UI
+	Git gitpkg.Client
+	UI  *UI
 }

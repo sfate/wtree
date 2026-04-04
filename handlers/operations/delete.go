@@ -1,8 +1,6 @@
 package operations
 
-type DeleteService struct {
-	OperationServiceImpl
-}
+type DeleteService struct{}
 
 func NewDeleteService() OperationService {
 	return &DeleteService{}

@@ -1,8 +1,6 @@
 package operations
 
-type VersionService struct {
-	OperationServiceImpl
-}
+type VersionService struct{}
 
 func NewVersionService() OperationService {
 	return &VersionService{}

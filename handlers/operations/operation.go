@@ -1,10 +1,6 @@
 package operations
 
-import (
-	"fmt"
-
-	wtreepkg "github.com/sfate/wtree/wtree"
-)
+import wtreepkg "github.com/sfate/wtree/wtree"
 
 type ServiceOptions struct {
 	Version string
@@ -24,13 +20,6 @@ type ServiceArgs struct {
 
 type OperationServiceFactory func() OperationService
 
-type OperationServiceImpl struct {
-}
-
 type OperationService interface {
 	Process(options ServiceOptions, args ServiceArgs) error
-}
-
-func (s *OperationServiceImpl) Process(options ServiceOptions, args ServiceArgs) error {
-	return fmt.Errorf("not implemented")
 }

@@ -40,7 +40,7 @@ eval "$(wtree --shell-init bash)"
 
 ## Configuration
 
-On first run inside a git project, wtree automatically adds an entry for that project to `~/.config/wtree/config.yml` and exits, prompting you to fill in any required fields.
+On first run inside a git project, wtree automatically adds an entry for that project to `~/.config/wtree/config.yml`. It then continues with the requested operation using the default settings for that project until you customize them.
 
 ```yaml
 # ~/.config/wtree/config.yml
@@ -66,7 +66,7 @@ projects:
 - `ticket_prefix` is optional; if omitted, `[branch]` must always be passed explicitly
 - `branch_prefix` is optional; only meaningful when `ticket_prefix` is set
 - `hooks` are optional; each entry is a path to an executable script
-- Project `name` and `path` must each be unique across all entries
+- Project `path` must be unique across all entries
 
 **Git ignore:**
 
@@ -131,8 +131,6 @@ wtree --root
 
 ```bash
 wtree --clean
-# or
-wtree --clear
 ```
 
 ### Remove stale worktrees
