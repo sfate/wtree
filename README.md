@@ -14,12 +14,6 @@ go install github.com/sfate/wtree@latest
 export PATH="$(go env GOBIN):$PATH"
 ```
 
-If you use `asdf` for Go, refresh the shim after installation:
-
-```bash
-asdf reshim golang $(asdf current golang | awk 'NR==2 {print $2}')
-```
-
 ## Shell integration
 
 `wtree` needs shell integration to `cd` into worktree directories. Add to your shell config:
@@ -34,8 +28,6 @@ eval "$(wtree --shell-init zsh)"
 eval "$(wtree --shell-init bash)"
 ```
 
-> **Powerlevel10k users:** place the `eval` line **before** the p10k instant prompt block in `~/.zshrc`.
-
 **How it works:** navigation commands (`wtree <ref>`, `wtree --root`) print only the target path to stdout. The shell function captures that output and calls `cd`. All other output (branch names, status messages) goes to stderr and displays in your terminal normally. Non-navigation commands (`--list`, `--delete`, etc.) bypass the wrapper and run directly.
 
 ## Configuration
@@ -46,8 +38,7 @@ On first run inside a git project, wtree automatically adds an entry for that pr
 # ~/.config/wtree/config.yml
 
 projects:
-  - name: project-abc
-    path: ~/code/project-abc
+  - path: ~/code/project-abc
     base_dir: ~/.wtree/project-abc   # optional — default is ~/code/project-abc/.wtree
     ticket_prefix: ABC-   # optional — enables automatic branch derivation from refs like ABC-1234
     branch_prefix: ob-    # optional — prepended to ticket prefix: ob- + abc- → ob-abc-1234
@@ -55,8 +46,7 @@ projects:
       post_navigation: ~/.config/wtree/hooks/project-abc/post_navigation.sh
       post_delete: ~/.config/wtree/hooks/project-abc/post_delete.sh
 
-  - name: personal-site
-    path: ~/code/personal-site
+  - path: ~/code/personal-site
     # no ticket_prefix — branch must always be supplied explicitly
 ```
 
@@ -170,3 +160,7 @@ make clean       # remove binary and dist/
 ```
 
 `make release` requires a clean worktree, verifies that [VERSION](/Users/oleksiibobyriev/blackholesun/wtree/VERSION) matches the latest tag, bumps the version, commits the `VERSION` change, pushes the commit, and then pushes the new tag.
+
+## License
+
+See [LICENSE](/Users/oleksiibobyriev/blackholesun/wtree/LICENSE).

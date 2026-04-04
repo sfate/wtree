@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 
 	"github.com/sfate/wtree/config"
 	gitpkg "github.com/sfate/wtree/git"
@@ -95,8 +94,7 @@ func (h *Handler) newManager() (*wtreepkg.Manager, error) {
 		return nil, err
 	}
 
-	projectName := filepath.Base(projectDir)
-	cfg, err := config.LoadOrCreateProjectConfig(projectName, projectDir)
+	cfg, err := config.LoadOrCreateProjectConfig(projectDir)
 	if err != nil {
 		return nil, fmt.Errorf("config: %w", err)
 	}

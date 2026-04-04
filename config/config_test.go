@@ -22,18 +22,10 @@ func TestExpandHome(t *testing.T) {
 	}
 }
 
-func TestValidate_AllowsDuplicateName(t *testing.T) {
-	cfg := Config{Projects: []ProjectConfig{
-		{Name: "foo", Path: "/a"},
-		{Name: "foo", Path: "/b"},
-	}}
-	require.NoError(t, cfg.validate())
-}
-
 func TestValidate_DuplicatePath(t *testing.T) {
 	cfg := Config{Projects: []ProjectConfig{
-		{Name: "foo", Path: "/same"},
-		{Name: "bar", Path: "/same"},
+		{Path: "/same"},
+		{Path: "/same"},
 	}}
 	err := cfg.validate()
 	require.Error(t, err)
@@ -43,23 +35,23 @@ func TestValidate_DuplicatePath(t *testing.T) {
 func TestValidate_DuplicatePathExpandedTilde(t *testing.T) {
 	home, _ := os.UserHomeDir()
 	cfg := Config{Projects: []ProjectConfig{
-		{Name: "foo", Path: "~/code"},
-		{Name: "bar", Path: filepath.Join(home, "code")},
+		{Path: "~/code"},
+		{Path: filepath.Join(home, "code")},
 	}}
 	require.Error(t, cfg.validate())
 }
 
 func TestValidate_Valid(t *testing.T) {
 	cfg := Config{Projects: []ProjectConfig{
-		{Name: "foo", Path: "/a"},
-		{Name: "bar", Path: "/b"},
+		{Path: "/a"},
+		{Path: "/b"},
 	}}
 	require.NoError(t, cfg.validate())
 }
 
 func TestFindProjectConfigByPath(t *testing.T) {
 	cfg := Config{Projects: []ProjectConfig{
-		{Name: "foo", Path: "/code/foo", TicketPrefix: "ABC-"},
+		{Path: "/code/foo", TicketPrefix: "ABC-"},
 	}}
 	p, missing := cfg.FindProjectConfig("/code/foo")
 	require.False(t, missing)
@@ -68,7 +60,7 @@ func TestFindProjectConfigByPath(t *testing.T) {
 
 func TestFindProjectConfigDoesNotFallbackByName(t *testing.T) {
 	cfg := Config{Projects: []ProjectConfig{
-		{Name: "foo", Path: "/old/path", TicketPrefix: "XYZ-"},
+		{Path: "/old/path", TicketPrefix: "XYZ-"},
 	}}
 	_, missing := cfg.FindProjectConfig("/new/path")
 	require.True(t, missing)
@@ -79,7 +71,6 @@ func TestFindProjectConfigMissing(t *testing.T) {
 	p, missing := cfg.FindProjectConfig("/code/newproject")
 	require.True(t, missing)
 	require.Equal(t, ProjectConfig{}, ProjectConfig{
-		Name:         p.Name,
 		Path:         p.Path,
 		BaseDir:      p.BaseDir,
 		TicketPrefix: p.TicketPrefix,
@@ -95,7 +86,7 @@ func TestSaveAndLoad(t *testing.T) {
 
 	cfg := Config{
 		Projects: []ProjectConfig{
-			{Name: "myproject", Path: "/code/myproject", BaseDir: "~/.wtree/myproject", TicketPrefix: "ABC-"},
+			{Path: "/code/myproject", BaseDir: "~/.wtree/myproject", TicketPrefix: "ABC-"},
 		},
 	}
 	require.NoError(t, cfg.Save())
@@ -103,7 +94,6 @@ func TestSaveAndLoad(t *testing.T) {
 	loaded, err := Load()
 	require.NoError(t, err)
 	require.Len(t, loaded.Projects, 1)
-	require.Equal(t, "myproject", loaded.Projects[0].Name)
 	require.Equal(t, "ABC-", loaded.Projects[0].TicketPrefix)
 	require.Equal(t, "~/.wtree/myproject", loaded.Projects[0].BaseDir)
 }
@@ -125,9 +115,8 @@ func TestLoadOrCreateProjectConfigCreatesDefault(t *testing.T) {
 	ConfigPath = func() string { return filepath.Join(dir, "config.yml") }
 	t.Cleanup(func() { ConfigPath = origConfigPath })
 
-	got, err := LoadOrCreateProjectConfig("myproject", "/code/myproject")
+	got, err := LoadOrCreateProjectConfig("/code/myproject")
 	require.NoError(t, err)
-	require.Equal(t, "myproject", got.Name)
 	require.Equal(t, "/code/myproject", got.Path)
 	require.Equal(t, "/code/myproject/.wtree", got.BaseDir)
 
@@ -136,16 +125,16 @@ func TestLoadOrCreateProjectConfigCreatesDefault(t *testing.T) {
 	require.Len(t, loaded.Projects, 1)
 }
 
-func TestLoadOrCreateProjectConfigSameNameDifferentPathCreatesSeparateEntries(t *testing.T) {
+func TestLoadOrCreateProjectConfigDifferentPathsCreateSeparateEntries(t *testing.T) {
 	dir := t.TempDir()
 	origConfigPath := ConfigPath
 	ConfigPath = func() string { return filepath.Join(dir, "config.yml") }
 	t.Cleanup(func() { ConfigPath = origConfigPath })
 
-	first, err := LoadOrCreateProjectConfig("api", "/code/team-a/api")
+	first, err := LoadOrCreateProjectConfig("/code/team-a/api")
 	require.NoError(t, err)
 
-	second, err := LoadOrCreateProjectConfig("api", "/code/team-b/api")
+	second, err := LoadOrCreateProjectConfig("/code/team-b/api")
 	require.NoError(t, err)
 
 	require.Equal(t, "/code/team-a/api", first.Path)

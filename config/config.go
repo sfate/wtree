@@ -27,7 +27,6 @@ func (h HooksConfig) ExpandedPostDelete() string { return expandHome(h.PostDelet
 
 // ProjectConfig holds per-project settings from the config file and runtime hooks.
 type ProjectConfig struct {
-	Name         string      `yaml:"name"`
 	Path         string      `yaml:"path"`
 	BaseDir      string      `yaml:"base_dir,omitempty"`
 	TicketPrefix string      `yaml:"ticket_prefix,omitempty"`
@@ -56,9 +55,8 @@ type Config struct {
 }
 
 // DefaultProjectConfig returns a ProjectConfig with sensible defaults.
-func DefaultProjectConfig(name, projectDir string) ProjectConfig {
+func DefaultProjectConfig(projectDir string) ProjectConfig {
 	return ProjectConfig{
-		Name:         name,
 		Path:         projectDir,
 		BaseDir:      filepath.Join(projectDir, ".wtree"),
 		TicketPrefix: "ABC-",
@@ -123,7 +121,7 @@ func FindProjectConfig(projectDir string) (ProjectConfig, bool, error) {
 
 // LoadOrCreateProjectConfig returns the matching project config from disk,
 // or creates, saves, and returns a default one when no entry exists yet.
-func LoadOrCreateProjectConfig(name, projectDir string) (ProjectConfig, error) {
+func LoadOrCreateProjectConfig(projectDir string) (ProjectConfig, error) {
 	cfg, err := Load()
 	if err != nil {
 		return ProjectConfig{}, err
@@ -134,7 +132,7 @@ func LoadOrCreateProjectConfig(name, projectDir string) (ProjectConfig, error) {
 		return projectCfg, nil
 	}
 
-	projectCfg = DefaultProjectConfig(name, projectDir)
+	projectCfg = DefaultProjectConfig(projectDir)
 	cfg.Projects = append(cfg.Projects, projectCfg)
 	if err := cfg.Save(); err != nil {
 		return ProjectConfig{}, err
