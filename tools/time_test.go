@@ -1,11 +1,13 @@
-package wtree
+package tools
 
 import (
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
-func TestRelativeTime(t *testing.T) {
+func TestRelative(t *testing.T) {
 	tests := []struct {
 		name     string
 		offset   time.Duration
@@ -24,22 +26,16 @@ func TestRelativeTime(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			past := time.Now().Add(-tt.offset)
-			got := relativeTime(past)
-			if got != tt.expected {
-				t.Errorf("relativeTime(%v ago) = %q, want %q", tt.offset, got, tt.expected)
-			}
+			require.Equal(t, tt.expected, TimeRelative(past))
 		})
 	}
 
 	t.Run("zero time", func(t *testing.T) {
-		got := relativeTime(time.Time{})
-		if got != "unknown" {
-			t.Errorf("relativeTime(zero) = %q, want %q", got, "unknown")
-		}
+		require.Equal(t, "unknown", TimeRelative(time.Time{}))
 	})
 }
 
-func TestPluralize(t *testing.T) {
+func TestTimePluralize(t *testing.T) {
 	tests := []struct {
 		n        int
 		unit     string
@@ -52,10 +48,7 @@ func TestPluralize(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.expected, func(t *testing.T) {
-			got := pluralize(tt.n, tt.unit)
-			if got != tt.expected {
-				t.Errorf("pluralize(%d, %q) = %q, want %q", tt.n, tt.unit, got, tt.expected)
-			}
+			require.Equal(t, tt.expected, timePluralize(tt.n, tt.unit))
 		})
 	}
 }

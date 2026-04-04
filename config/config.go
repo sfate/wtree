@@ -25,25 +25,49 @@ func (h HooksConfig) ExpandedPostNavigation() string { return expandHome(h.PostN
 // ExpandedPostDelete returns the PostDelete path with ~ expanded.
 func (h HooksConfig) ExpandedPostDelete() string { return expandHome(h.PostDelete) }
 
-// Project holds per-project settings from the config file.
-type Project struct {
-	Name         string      `yaml:"name"`
+// ProjectConfig holds per-project settings from the config file and runtime hooks.
+type ProjectConfig struct {
 	Path         string      `yaml:"path"`
+	BaseDir      string      `yaml:"base_dir,omitempty"`
 	TicketPrefix string      `yaml:"ticket_prefix,omitempty"`
 	BranchPrefix string      `yaml:"branch_prefix,omitempty"`
 	Hooks        HooksConfig `yaml:"hooks,omitempty"`
+
+	PostNavigation func(ref, projectName, worktreeDir string) error `yaml:"-"`
+	PostDelete     func(ref string) error                           `yaml:"-"`
+}
+
+// ExpandedBaseDir returns BaseDir with ~ expanded.
+func (p ProjectConfig) ExpandedBaseDir() string { return expandHome(p.BaseDir) }
+
+// EffectiveBaseDir returns the configured base dir with ~ expanded, or the
+// default project-local base dir when BaseDir is empty.
+func (p ProjectConfig) EffectiveBaseDir() string {
+	if p.BaseDir == "" {
+		return filepath.Join(expandHome(p.Path), ".wtree")
+	}
+	return p.ExpandedBaseDir()
 }
 
 // Config is the top-level structure of ~/.config/wtree/config.yml.
 type Config struct {
-	BaseDir  string    `yaml:"base_dir,omitempty"`
-	Projects []Project `yaml:"projects,omitempty"`
+	Projects []ProjectConfig `yaml:"projects,omitempty"`
+}
+
+// DefaultProjectConfig returns a ProjectConfig with sensible defaults.
+func DefaultProjectConfig(projectDir string) ProjectConfig {
+	return ProjectConfig{
+		Path:         projectDir,
+		BaseDir:      filepath.Join(projectDir, ".wtree"),
+		TicketPrefix: "ABC-",
+		BranchPrefix: "ob-",
+	}
 }
 
 // Load reads the config file. Returns an empty Config if the file does not
 // exist yet.
 func Load() (Config, error) {
-	data, err := os.ReadFile(FilePath())
+	data, err := os.ReadFile(ConfigPath())
 	if os.IsNotExist(err) {
 		return Config{}, nil
 	}
@@ -62,7 +86,7 @@ func Load() (Config, error) {
 
 // Save writes the config back to disk, creating parent directories as needed.
 func (c *Config) Save() error {
-	p := FilePath()
+	p := ConfigPath()
 	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
 		return err
 	}
@@ -73,10 +97,8 @@ func (c *Config) Save() error {
 	return os.WriteFile(p, data, 0o644)
 }
 
-// FindOrCreate returns the Project matching projectDir (by path, then by name).
-// If no match is found it appends a new entry and returns it with created=true
-// — the caller should call Save().
-func (c *Config) FindOrCreate(name, projectDir string) (Project, bool) {
+// FindProjectConfig returns the project config matching projectDir.
+func (c *Config) FindProjectConfig(projectDir string) (ProjectConfig, bool) {
 	abs := expandHome(projectDir)
 
 	for _, p := range c.Projects {
@@ -84,38 +106,50 @@ func (c *Config) FindOrCreate(name, projectDir string) (Project, bool) {
 			return p, false
 		}
 	}
-	for _, p := range c.Projects {
-		if p.Name == name {
-			return p, false
-		}
+	return ProjectConfig{}, true
+}
+
+// FindProjectConfig reads the config file and returns the matching project config.
+func FindProjectConfig(projectDir string) (ProjectConfig, bool, error) {
+	cfg, err := Load()
+	if err != nil {
+		return ProjectConfig{}, false, err
+	}
+	projectCfg, missing := cfg.FindProjectConfig(projectDir)
+	return projectCfg, !missing, nil
+}
+
+// LoadOrCreateProjectConfig returns the matching project config from disk,
+// or creates, saves, and returns a default one when no entry exists yet.
+func LoadOrCreateProjectConfig(projectDir string) (ProjectConfig, error) {
+	cfg, err := Load()
+	if err != nil {
+		return ProjectConfig{}, err
 	}
 
-	p := Project{Name: name, Path: projectDir}
-	c.Projects = append(c.Projects, p)
-	return p, true
+	projectCfg, missing := cfg.FindProjectConfig(projectDir)
+	if !missing {
+		return projectCfg, nil
+	}
+
+	projectCfg = DefaultProjectConfig(projectDir)
+	cfg.Projects = append(cfg.Projects, projectCfg)
+	if err := cfg.Save(); err != nil {
+		return ProjectConfig{}, err
+	}
+	return projectCfg, nil
 }
 
-// ExpandedBaseDir returns BaseDir with ~ expanded.
-func (c *Config) ExpandedBaseDir() string {
-	return expandHome(c.BaseDir)
-}
-
-// FilePath returns the path to the config file. It is a variable so tests can
+// ConfigPath returns the path to the config file. It is a variable so tests can
 // override it without touching the real ~/.config/wtree/config.yml.
-var FilePath = func() string {
+var ConfigPath = func() string {
 	home, _ := os.UserHomeDir()
 	return filepath.Join(home, ".config", "wtree", "config.yml")
 }
 
 func (c *Config) validate() error {
-	names := make(map[string]struct{}, len(c.Projects))
 	paths := make(map[string]struct{}, len(c.Projects))
 	for _, p := range c.Projects {
-		if _, dup := names[p.Name]; dup {
-			return fmt.Errorf("config: duplicate project name %q", p.Name)
-		}
-		names[p.Name] = struct{}{}
-
 		abs := expandHome(p.Path)
 		if _, dup := paths[abs]; dup {
 			return fmt.Errorf("config: duplicate project path %q", p.Path)

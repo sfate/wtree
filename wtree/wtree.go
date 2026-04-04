@@ -4,50 +4,17 @@
 package wtree
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 	"time"
+
+	gitpkg "github.com/sfate/wtree/git"
+	"github.com/sfate/wtree/tools"
 )
-
-// Config controls the behaviour of a Manager.
-type Config struct {
-	// BaseDir is the root directory under which per-project worktree directories
-	// are created (default: ~/.worktrees).
-	BaseDir string
-
-	// EnvFile is the name of the per-worktree environment file (default: .wtree_env).
-	EnvFile string
-
-	// TicketPrefix is the prefix used to recognise ticket references and
-	// automatically derive branch names (default: "ABC-").
-	TicketPrefix string
-
-	// BranchPrefix is prepended to the numeric part of a ticket reference to
-	// form the branch name (default: "ob-abc-").
-	BranchPrefix string
-
-	// PostNavigation is an optional hook called after a worktree is created or
-	// switched to. It receives the ref, the project name, and the worktree
-	// directory path.
-	PostNavigation func(ref, projectName, worktreeDir string) error
-
-	// PostDelete is an optional hook called after a worktree is removed.
-	PostDelete func(ref string) error
-}
-
-// DefaultConfig returns a Config with sensible defaults and no hooks.
-func DefaultConfig() Config {
-	home, _ := os.UserHomeDir()
-	return Config{
-		BaseDir:      filepath.Join(home, ".worktrees"),
-		EnvFile:      ".wtree_env",
-		TicketPrefix: "ABC-",
-		BranchPrefix: "ob-abc-",
-	}
-}
 
 // WorktreeEntry describes a single worktree tracked by the manager.
 type WorktreeEntry struct {
@@ -58,29 +25,49 @@ type WorktreeEntry struct {
 
 // RelativeAge returns a human-readable string such as "3 days ago".
 func (e WorktreeEntry) RelativeAge() string {
-	return relativeTime(e.LastCommitAt)
+	return tools.TimeRelative(e.LastCommitAt)
 }
 
 // Manager provides operations over git worktrees for a single project.
 type Manager struct {
 	cfg        Config
 	projectDir string
+	git        gitpkg.Client
+	logger     Logger
 }
 
 // New creates a Manager rooted at the git project that contains the current
 // working directory. It returns an error if the CWD is not inside a git repo.
 func New(cfg Config) (*Manager, error) {
-	dir, err := FindGitRoot()
+	dir, err := gitpkg.FindRoot()
 	if err != nil {
 		return nil, err
 	}
-	return &Manager{cfg: cfg, projectDir: dir}, nil
+	return NewManager(dir, cfg, ManagerDeps{}), nil
 }
 
 // NewAt creates a Manager with an explicit project directory, skipping git
 // root detection.
 func NewAt(cfg Config, projectDir string) *Manager {
-	return &Manager{cfg: cfg, projectDir: projectDir}
+	return NewManager(projectDir, cfg, ManagerDeps{})
+}
+
+// NewManager creates a Manager with explicit project directory and dependencies.
+func NewManager(projectDir string, cfg Config, deps ManagerDeps) *Manager {
+	gitClient := deps.Git
+	if gitClient == nil {
+		gitClient = gitpkg.NewClient()
+	}
+	logger := deps.Logger
+	if logger == nil {
+		logger = discardLogger{}
+	}
+	return &Manager{
+		cfg:        cfg,
+		projectDir: projectDir,
+		git:        gitClient,
+		logger:     logger,
+	}
 }
 
 // ProjectDir returns the absolute path of the git project root.
@@ -90,7 +77,7 @@ func (m *Manager) ProjectDir() string { return m.projectDir }
 func (m *Manager) ProjectName() string { return filepath.Base(m.projectDir) }
 
 func (m *Manager) worktreeProjectDir() string {
-	return filepath.Join(m.cfg.BaseDir, m.ProjectName())
+	return m.cfg.BaseDir
 }
 
 func (m *Manager) worktreeDir(ref string) string {
@@ -117,12 +104,12 @@ func (m *Manager) List() ([]WorktreeEntry, error) {
 		ref := de.Name()
 		wtDir := filepath.Join(wpd, ref)
 
-		branch, err := gitCurrentBranch(wtDir)
+		branch, err := m.git.CurrentBranch(wtDir)
 		if err != nil || branch == "" {
 			continue
 		}
 
-		commitTime, _ := gitLastCommitTime(wtDir, branch)
+		commitTime, _ := m.git.LastCommitTime(wtDir, branch)
 
 		entries = append(entries, WorktreeEntry{
 			Ref:          ref,
@@ -151,23 +138,28 @@ func (m *Manager) Create(ref, branch, baseBranch string) (dir string, existed bo
 	wtDir := m.worktreeDir(ref)
 
 	// Ensure parent directory exists.
-	if err := os.MkdirAll(wtDir, 0o755); err != nil {
+	if err := os.MkdirAll(m.worktreeProjectDir(), 0o755); err != nil {
 		return "", false, err
 	}
 
 	// Check if worktree is already registered.
-	registered, err := gitWorktreeRegistered(m.projectDir, wtDir)
+	registered, err := m.git.WorktreeRegistered(m.projectDir, wtDir)
 	if err != nil {
 		return "", false, err
 	}
 	if registered {
-		fmt.Println("Worktree already exists.")
+		m.logger.Errorf("Worktree already exists.\n")
 		if m.cfg.PostNavigation != nil {
 			if err := m.cfg.PostNavigation(ref, m.ProjectName(), wtDir); err != nil {
 				return wtDir, true, err
 			}
 		}
 		return wtDir, true, nil
+	}
+	if _, err := os.Stat(wtDir); err == nil {
+		return "", false, fmt.Errorf("worktree path exists but is not registered: %s", wtDir)
+	} else if !os.IsNotExist(err) {
+		return "", false, err
 	}
 
 	// Derive branch if not supplied.
@@ -180,18 +172,25 @@ func (m *Manager) Create(ref, branch, baseBranch string) (dir string, existed bo
 
 	// Derive base branch if not supplied.
 	if baseBranch == "" {
-		baseBranch, err = gitBaseBranch(m.projectDir)
+		baseBranch, err = m.git.BaseBranch(m.projectDir)
 		if err != nil {
 			return "", false, err
 		}
 	}
 
-	fmt.Printf("Using branch name: %s\n", branch)
-	if err := gitEnsureBranch(m.projectDir, branch, baseBranch); err != nil {
+	m.logger.Errorf("Using branch name: %s\n", branch)
+	exists, err := m.git.BranchExists(m.projectDir, branch)
+	if err != nil {
+		return "", false, err
+	}
+	if !exists {
+		m.logger.Errorf("Branch does not exist.. creating from: %s.\n", baseBranch)
+	}
+	if err := m.git.EnsureBranch(m.projectDir, branch, baseBranch); err != nil {
 		return "", false, err
 	}
 
-	if err := gitWorktreeAdd(m.projectDir, wtDir, branch); err != nil {
+	if err := m.git.WorktreeAdd(m.projectDir, wtDir, branch); err != nil {
 		return "", false, err
 	}
 
@@ -214,11 +213,11 @@ func (m *Manager) Delete(ref string) error {
 		return fmt.Errorf("worktree not found: %s", ref)
 	}
 
-	fmt.Printf("Removing worktree: %s\n", ref)
-	if err := gitWorktreeRemove(m.projectDir, wtDir); err != nil {
+	m.logger.Infof("Removing worktree: %s\n", ref)
+	if err := m.git.WorktreeRemove(m.projectDir, wtDir); err != nil {
 		return err
 	}
-	fmt.Println("Worktree removed.")
+	m.logger.Infof("Worktree removed.\n")
 
 	if m.cfg.PostDelete != nil {
 		return m.cfg.PostDelete(ref)
@@ -232,32 +231,41 @@ func (m *Manager) Clean() error {
 	dirEntries, err := os.ReadDir(wpd)
 	if err != nil {
 		if os.IsNotExist(err) {
-			fmt.Printf("No worktrees to clean for project: %s\n", m.ProjectName())
+			m.logger.Infof("No worktrees to clean for project: %s\n", m.ProjectName())
 			return nil
 		}
 		return err
 	}
 
-	fmt.Printf("Cleaning all worktrees for project: %s\n", m.ProjectName())
+	m.logger.Infof("Cleaning all worktrees for project: %s\n", m.ProjectName())
 
+	var errs []error
 	for _, de := range dirEntries {
 		if !de.IsDir() {
 			continue
 		}
 		ref := de.Name()
 		wtDir := filepath.Join(wpd, ref)
-		fmt.Printf("Removing: %s\n", ref)
-		_ = gitWorktreeRemove(m.projectDir, wtDir)
+		m.logger.Infof("Removing: %s\n", ref)
+		if err := m.git.WorktreeRemove(m.projectDir, wtDir); err != nil {
+			errs = append(errs, fmt.Errorf("remove %s: %w", ref, err))
+			continue
+		}
 
 		if m.cfg.PostDelete != nil {
-			_ = m.cfg.PostDelete(ref)
+			if err := m.cfg.PostDelete(ref); err != nil {
+				errs = append(errs, fmt.Errorf("post-delete %s: %w", ref, err))
+			}
 		}
 	}
 
 	// Remove empty project worktree directory.
 	m.removeEmptyDir(wpd)
-	fmt.Println("All worktrees cleaned.")
-	return nil
+	if len(errs) == 0 {
+		m.logger.Infof("All worktrees cleaned.\n")
+		return nil
+	}
+	return errors.Join(errs...)
 }
 
 // CleanStale returns worktree entries with no commit activity within the given
@@ -280,18 +288,24 @@ func (m *Manager) CleanStale(age time.Duration) ([]WorktreeEntry, error) {
 
 // DeleteEntries removes all worktrees in the provided slice.
 func (m *Manager) DeleteEntries(entries []WorktreeEntry) error {
+	var errs []error
 	for _, e := range entries {
-		fmt.Printf("Removing: %s\n", e.Ref)
+		m.logger.Infof("Removing: %s\n", e.Ref)
 		wtDir := m.worktreeDir(e.Ref)
-		_ = gitWorktreeRemove(m.projectDir, wtDir)
+		if err := m.git.WorktreeRemove(m.projectDir, wtDir); err != nil {
+			errs = append(errs, fmt.Errorf("remove %s: %w", e.Ref, err))
+			continue
+		}
 
 		if m.cfg.PostDelete != nil {
-			_ = m.cfg.PostDelete(e.Ref)
+			if err := m.cfg.PostDelete(e.Ref); err != nil {
+				errs = append(errs, fmt.Errorf("post-delete %s: %w", e.Ref, err))
+			}
 		}
 	}
 
 	m.removeEmptyDir(m.worktreeProjectDir())
-	return nil
+	return errors.Join(errs...)
 }
 
 // deriveBranch converts a ticket-style ref (e.g. "ABC-1234") into a branch name.
@@ -300,9 +314,9 @@ func (m *Manager) deriveBranch(ref string) (string, error) {
 		return "", fmt.Errorf("[branch] is required")
 	}
 	num := strings.TrimPrefix(ref, m.cfg.TicketPrefix)
-	branchName := m.cfg.BranchPrefix + num
+	branchName := m.cfg.BranchPrefix + strings.ToLower(m.cfg.TicketPrefix) + num
 
-	found, err := gitFindBranch(m.projectDir, branchName)
+	found, err := m.git.FindBranch(m.projectDir, branchName)
 	if err != nil {
 		return branchName, nil
 	}

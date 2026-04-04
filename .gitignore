@@ -1,0 +1,6 @@
+.vscode
+.idea
+.DS_Store
+tmp
+__debug_bin
+.wtree-bin
