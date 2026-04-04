@@ -187,6 +187,10 @@ func (a *App) runParsedArgs(args *rootArgs) error {
 		Branch:     args.Branch,
 		BaseBranch: args.BaseBranch,
 		Shell:      args.ShellInit,
+		DeleteRef:  args.DeleteRef,
+	}
+	if handlerType == handlers.HandlerTypeCreate {
+		serviceArgs.Ref = args.Ref
 	}
 	return a.handler.Call(handlerType, serviceArgs)
 }

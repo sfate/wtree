@@ -13,5 +13,5 @@ func (s *DeleteService) Process(options ServiceOptions, args ServiceArgs) error 
 	if err != nil {
 		return err
 	}
-	return m.Delete(args.Ref)
+	return m.Delete(args.DeleteRef)
 }

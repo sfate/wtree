@@ -62,7 +62,7 @@ func DefaultProjectConfig(name, projectDir string) ProjectConfig {
 		Path:         projectDir,
 		BaseDir:      filepath.Join(projectDir, ".wtree"),
 		TicketPrefix: "ABC-",
-		BranchPrefix: "ob-abc-",
+		BranchPrefix: "ob-",
 	}
 }
 

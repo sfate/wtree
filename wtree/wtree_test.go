@@ -56,8 +56,8 @@ func TestDefaultProjectConfig(t *testing.T) {
 	if cfg.TicketPrefix != "ABC-" {
 		t.Errorf("TicketPrefix = %q, want %q", cfg.TicketPrefix, "ABC-")
 	}
-	if cfg.BranchPrefix != "ob-abc-" {
-		t.Errorf("BranchPrefix = %q, want %q", cfg.BranchPrefix, "ob-abc-")
+	if cfg.BranchPrefix != "ob-" {
+		t.Errorf("BranchPrefix = %q, want %q", cfg.BranchPrefix, "ob-")
 	}
 }
 

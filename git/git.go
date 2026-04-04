@@ -104,7 +104,6 @@ func EnsureBranch(dir, branch, baseBranch string) error {
 	if BranchExists(dir, branch) {
 		return nil
 	}
-	fmt.Printf("Branch does not exist.. creating from: %s.\n", baseBranch)
 	_, err := Run(dir, "branch", branch, baseBranch)
 	return err
 }

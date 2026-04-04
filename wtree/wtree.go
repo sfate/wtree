@@ -132,7 +132,7 @@ func (m *Manager) Create(ref, branch, baseBranch string) (dir string, existed bo
 	wtDir := m.worktreeDir(ref)
 
 	// Ensure parent directory exists.
-	if err := os.MkdirAll(wtDir, 0o755); err != nil {
+	if err := os.MkdirAll(m.worktreeProjectDir(), 0o755); err != nil {
 		return "", false, err
 	}
 
@@ -149,6 +149,11 @@ func (m *Manager) Create(ref, branch, baseBranch string) (dir string, existed bo
 			}
 		}
 		return wtDir, true, nil
+	}
+	if _, err := os.Stat(wtDir); err == nil {
+		return "", false, fmt.Errorf("worktree path exists but is not registered: %s", wtDir)
+	} else if !os.IsNotExist(err) {
+		return "", false, err
 	}
 
 	// Derive branch if not supplied.
@@ -168,6 +173,9 @@ func (m *Manager) Create(ref, branch, baseBranch string) (dir string, existed bo
 	}
 
 	m.ui.Errorf("Using branch name: %s\n", branch)
+	if !gitpkg.BranchExists(m.projectDir, branch) {
+		m.ui.Errorf("Branch does not exist.. creating from: %s.\n", baseBranch)
+	}
 	if err := gitpkg.EnsureBranch(m.projectDir, branch, baseBranch); err != nil {
 		return "", false, err
 	}
@@ -281,7 +289,7 @@ func (m *Manager) deriveBranch(ref string) (string, error) {
 		return "", fmt.Errorf("[branch] is required")
 	}
 	num := strings.TrimPrefix(ref, m.cfg.TicketPrefix)
-	branchName := m.cfg.BranchPrefix + num
+	branchName := m.cfg.BranchPrefix + strings.ToLower(m.cfg.TicketPrefix) + num
 
 	found, err := gitpkg.FindBranch(m.projectDir, branchName)
 	if err != nil {

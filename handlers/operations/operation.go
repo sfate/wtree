@@ -19,6 +19,7 @@ type ServiceArgs struct {
 	Branch     string
 	BaseBranch string
 	Shell      string
+	DeleteRef  string
 }
 
 type OperationServiceFactory func() OperationService

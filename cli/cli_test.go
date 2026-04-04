@@ -99,6 +99,19 @@ func TestVersionFlagRejectsPositionalArgs(t *testing.T) {
 	}
 }
 
+func TestDeleteFlagPassesFlagValue(t *testing.T) {
+	cmd, _ := newTestCommand()
+	cmd.SetArgs([]string{"--delete", "LM-9999"})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected delete to fail outside configured context")
+	}
+	if strings.Contains(err.Error(), "ref is required for delete") {
+		t.Fatalf("delete flag value was not passed through: %v", err)
+	}
+}
+
 func TestSubcommandLikeListIsTreatedAsCreateArg(t *testing.T) {
 	cmd, _ := newTestCommand()
 	cmd.SetArgs([]string{"list", "extra", "value", "overflow"})
