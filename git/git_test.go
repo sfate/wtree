@@ -125,6 +125,25 @@ func TestBranchExistsExactMatchOnly(t *testing.T) {
 	require.Equal(t, "feature-abc", found)
 }
 
+func TestRemoteBranchExistsTrue(t *testing.T) {
+	dir := makeTestRepo(t)
+	gitSetup(t, dir, "update-ref", "refs/remotes/origin/feature/abc", "main")
+
+	exists, err := NewClient().RemoteBranchExists(dir, "origin", "feature/abc")
+	require.NoError(t, err)
+	require.True(t, exists)
+}
+
+func TestRemoteBranchExistsExactMatchOnly(t *testing.T) {
+	dir := makeTestRepo(t)
+	gitSetup(t, dir, "update-ref", "refs/remotes/origin/feature-abc-old", "main")
+
+	client := NewClient()
+	exists, err := client.RemoteBranchExists(dir, "origin", "feature-abc")
+	require.NoError(t, err)
+	require.False(t, exists)
+}
+
 func TestEnsureBranchCreateNew(t *testing.T) {
 	dir := makeTestRepo(t)
 	client := NewClient()
