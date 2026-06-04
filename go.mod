@@ -1,6 +1,6 @@
 module github.com/sfate/wtree
 
-go 1.25.8
+go 1.26.4
 
 require (
 	github.com/alexflint/go-arg v1.6.1
