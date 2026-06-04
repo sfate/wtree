@@ -17,6 +17,7 @@ type Client interface {
 	BaseBranch(dir string) (string, error)
 	FindBranch(dir, branch string) (string, error)
 	BranchExists(dir, branch string) (bool, error)
+	RemoteBranchExists(dir, remote, branch string) (bool, error)
 	EnsureBranch(dir, branch, baseBranch string) error
 	WorktreeRegistered(projectDir, worktreeDir string) (bool, error)
 	WorktreeAdd(projectDir, worktreeDir, branch string) error
@@ -97,7 +98,19 @@ func (CLI) BranchExists(dir, branch string) (bool, error) {
 	if branch == "" {
 		return false, nil
 	}
-	cmd := exec.Command("git", "show-ref", "--verify", "--quiet", "refs/heads/"+branch)
+	return refExists(dir, "refs/heads/"+branch)
+}
+
+// RemoteBranchExists returns true if a remote branch with the exact name exists.
+func (CLI) RemoteBranchExists(dir, remote, branch string) (bool, error) {
+	if remote == "" || branch == "" {
+		return false, nil
+	}
+	return refExists(dir, "refs/remotes/"+remote+"/"+branch)
+}
+
+func refExists(dir, ref string) (bool, error) {
+	cmd := exec.Command("git", "show-ref", "--verify", "--quiet", ref)
 	cmd.Dir = dir
 	err := cmd.Run()
 	if err == nil {

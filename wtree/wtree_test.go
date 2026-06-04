@@ -14,9 +14,12 @@ import (
 
 type fakeGitClient struct {
 	branches        map[string]bool
+	remoteBranches  map[string]bool
 	findBranch      map[string]string
 	removeErrors    map[string]error
 	removedPaths    []string
+	ensureBranch    string
+	ensureBase      string
 	baseBranch      string
 	baseBranchErr   error
 	ensureBranchErr error
@@ -51,7 +54,13 @@ func (f *fakeGitClient) BranchExists(dir, branch string) (bool, error) {
 	return f.branches[branch], nil
 }
 
+func (f *fakeGitClient) RemoteBranchExists(dir, remote, branch string) (bool, error) {
+	return f.remoteBranches[remote+"/"+branch], nil
+}
+
 func (f *fakeGitClient) EnsureBranch(dir, branch, baseBranch string) error {
+	f.ensureBranch = branch
+	f.ensureBase = baseBranch
 	return f.ensureBranchErr
 }
 
@@ -235,6 +244,44 @@ func TestCreatePropagatesBranchExistsError(t *testing.T) {
 	_, _, err := m.Create("ABC-1234", "", "")
 	require.Error(t, err)
 	require.ErrorContains(t, err, "branch lookup failed")
+}
+
+func TestCreateUsesRemoteBranchWhenLocalBranchDoesNotExist(t *testing.T) {
+	projectDir := t.TempDir()
+	baseDir := filepath.Join(projectDir, ".wtree")
+	gitClient := &fakeGitClient{
+		remoteBranches: map[string]bool{
+			"origin/feature-abc": true,
+		},
+	}
+	m := NewManager(projectDir, Config{
+		BaseDir: baseDir,
+	}, ManagerDeps{
+		Git:    gitClient,
+		Logger: NewUI(nil, &bytes.Buffer{}, &bytes.Buffer{}),
+	})
+
+	_, _, err := m.Create("ref-abc", "feature-abc", "")
+	require.NoError(t, err)
+	require.Equal(t, "feature-abc", gitClient.ensureBranch)
+	require.Equal(t, "origin/feature-abc", gitClient.ensureBase)
+}
+
+func TestCreateFallsBackToBaseBranchWhenRemoteBranchDoesNotExist(t *testing.T) {
+	projectDir := t.TempDir()
+	baseDir := filepath.Join(projectDir, ".wtree")
+	gitClient := &fakeGitClient{baseBranch: "develop"}
+	m := NewManager(projectDir, Config{
+		BaseDir: baseDir,
+	}, ManagerDeps{
+		Git:    gitClient,
+		Logger: NewUI(nil, &bytes.Buffer{}, &bytes.Buffer{}),
+	})
+
+	_, _, err := m.Create("ref-abc", "feature-abc", "")
+	require.NoError(t, err)
+	require.Equal(t, "feature-abc", gitClient.ensureBranch)
+	require.Equal(t, "develop", gitClient.ensureBase)
 }
 
 type branchExistsErrorGit struct {

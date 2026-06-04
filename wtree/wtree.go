@@ -125,8 +125,9 @@ func (m *Manager) List() ([]WorktreeEntry, error) {
 // Create creates (or navigates to an existing) worktree for the given ref.
 //
 // If branch is empty, the manager attempts to derive one from the ref using
-// TicketPrefix/BranchPrefix. If baseBranch is empty, it is resolved from
-// origin/HEAD.
+// TicketPrefix/BranchPrefix. Missing local branches are created from
+// origin/<branch> when that remote branch exists; otherwise baseBranch is used,
+// resolving from origin/HEAD when baseBranch is empty.
 //
 // Returns the worktree directory path, whether the worktree already existed,
 // and any error.
@@ -170,24 +171,34 @@ func (m *Manager) Create(ref, branch, baseBranch string) (dir string, existed bo
 		}
 	}
 
-	// Derive base branch if not supplied.
-	if baseBranch == "" {
-		baseBranch, err = m.git.BaseBranch(m.projectDir)
-		if err != nil {
-			return "", false, err
-		}
-	}
-
 	m.logger.Errorf("Using branch name: %s\n", branch)
 	exists, err := m.git.BranchExists(m.projectDir, branch)
 	if err != nil {
 		return "", false, err
 	}
 	if !exists {
-		m.logger.Errorf("Branch does not exist.. creating from: %s.\n", baseBranch)
-	}
-	if err := m.git.EnsureBranch(m.projectDir, branch, baseBranch); err != nil {
-		return "", false, err
+		startPoint := baseBranch
+		remoteBranch := "origin/" + branch
+		remoteExists, err := m.git.RemoteBranchExists(m.projectDir, "origin", branch)
+		if err != nil {
+			return "", false, err
+		}
+		if remoteExists {
+			startPoint = remoteBranch
+			m.logger.Errorf("Branch does not exist locally; creating from remote: %s.\n", startPoint)
+		} else {
+			// Derive base branch if not supplied.
+			if startPoint == "" {
+				startPoint, err = m.git.BaseBranch(m.projectDir)
+				if err != nil {
+					return "", false, err
+				}
+			}
+			m.logger.Errorf("Branch does not exist; creating from: %s.\n", startPoint)
+		}
+		if err := m.git.EnsureBranch(m.projectDir, branch, startPoint); err != nil {
+			return "", false, err
+		}
 	}
 
 	if err := m.git.WorktreeAdd(m.projectDir, wtDir, branch); err != nil {
