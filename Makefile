@@ -1,4 +1,5 @@
 BINARY  := wtree
+BUILD_DIR := build
 VERSION_CMD := go run ./version/cmd
 BUMP    ?= patch
 
@@ -7,7 +8,8 @@ INSTALL_DIR ?= /usr/local/bin
 .PHONY: build lint audit test clean release
 
 build:
-	go build -ldflags "-X github.com/sfate/wtree/version.Value=$$($(VERSION_CMD) get)" -o $(BINARY) .
+	mkdir -p $(BUILD_DIR)
+	go build -ldflags "-X github.com/sfate/wtree/version.Value=$$($(VERSION_CMD) get)" -o $(BUILD_DIR)/$(BINARY) .
 
 test:
 	go test ./...

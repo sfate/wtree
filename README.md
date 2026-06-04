@@ -4,28 +4,54 @@ A CLI for managing git worktrees organised by ticket reference or arbitrary name
 
 ## Install
 
+Build from source and link the binary into `~/.local/bin`:
+
 ```bash
-go install github.com/sfate/wtree@latest
+git clone https://github.com/sfate/wtree.git
+cd wtree
+make build
+mkdir -p ~/.local/bin
+ln -sf "$PWD/build/wtree" ~/.local/bin/wtree
 ```
 
-`go install` places the binary in `$(go env GOBIN)` (falling back to `$(go env GOPATH)/bin`). Make sure that directory is in your `PATH`:
+Make sure `~/.local/bin` is in your `PATH`:
 
 ```bash
-export PATH="$(go env GOBIN):$PATH"
+export PATH="$HOME/.local/bin:$PATH"
 ```
 
 ## Shell integration
 
-`wtree` needs shell integration to `cd` into worktree directories. Add to your shell config:
+`wtree` needs shell integration to `cd` into worktree directories. Add the matching snippet to your shell config.
 
 **zsh** (`~/.zshrc`):
 ```zsh
-eval "$(wtree --shell-init zsh)"
+WTREE_BIN="$HOME/.local/bin/wtree"
+
+if [[ -x "$WTREE_BIN" ]]; then
+  __wtree_init="$("$WTREE_BIN" --shell-init zsh 2>/dev/null)"
+  if [[ $? -eq 0 && -n "$__wtree_init" ]]; then
+    eval "$__wtree_init"
+  fi
+  unset __wtree_init
+fi
+
+unset WTREE_BIN
 ```
 
 **bash** (`~/.bashrc`):
 ```bash
-eval "$(wtree --shell-init bash)"
+WTREE_BIN="$HOME/.local/bin/wtree"
+
+if [[ -x "$WTREE_BIN" ]]; then
+  __wtree_init="$("$WTREE_BIN" --shell-init bash 2>/dev/null)"
+  if [[ $? -eq 0 && -n "$__wtree_init" ]]; then
+    eval "$__wtree_init"
+  fi
+  unset __wtree_init
+fi
+
+unset WTREE_BIN
 ```
 
 **How it works:** navigation commands (`wtree <ref>`, `wtree --root`) print only the target path to stdout. The shell function captures that output and calls `cd`. All other output (branch names, status messages) goes to stderr and displays in your terminal normally. Non-navigation commands (`--list`, `--delete`, etc.) bypass the wrapper and run directly.
