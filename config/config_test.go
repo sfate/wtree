@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v3"
 )
 
 func TestExpandHome(t *testing.T) {
@@ -51,16 +52,16 @@ func TestValidate_Valid(t *testing.T) {
 
 func TestFindProjectConfigByPath(t *testing.T) {
 	cfg := Config{Projects: []ProjectConfig{
-		{Path: "/code/foo", TicketPrefix: "ABC-"},
+		{Path: "/code/foo", TicketPrefix: TicketPrefixes{"AB-"}},
 	}}
 	p, missing := cfg.FindProjectConfig("/code/foo")
 	require.False(t, missing)
-	require.Equal(t, "ABC-", p.TicketPrefix)
+	require.Equal(t, TicketPrefixes{"AB-"}, p.TicketPrefix)
 }
 
 func TestFindProjectConfigDoesNotFallbackByName(t *testing.T) {
 	cfg := Config{Projects: []ProjectConfig{
-		{Path: "/old/path", TicketPrefix: "XYZ-"},
+		{Path: "/old/path", TicketPrefix: TicketPrefixes{"XYZ-"}},
 	}}
 	_, missing := cfg.FindProjectConfig("/new/path")
 	require.True(t, missing)
@@ -86,7 +87,7 @@ func TestSaveAndLoad(t *testing.T) {
 
 	cfg := Config{
 		Projects: []ProjectConfig{
-			{Path: "/code/myproject", BaseDir: "~/.wtree/myproject", TicketPrefix: "ABC-"},
+			{Path: "/code/myproject", BaseDir: "~/.wtree/myproject", TicketPrefix: TicketPrefixes{"AB-"}},
 		},
 	}
 	require.NoError(t, cfg.Save())
@@ -94,7 +95,7 @@ func TestSaveAndLoad(t *testing.T) {
 	loaded, err := Load()
 	require.NoError(t, err)
 	require.Len(t, loaded.Projects, 1)
-	require.Equal(t, "ABC-", loaded.Projects[0].TicketPrefix)
+	require.Equal(t, TicketPrefixes{"AB-"}, loaded.Projects[0].TicketPrefix)
 	require.Equal(t, "~/.wtree/myproject", loaded.Projects[0].BaseDir)
 }
 
@@ -156,4 +157,51 @@ func TestProjectConfigEffectiveBaseDirExpandsConfiguredValue(t *testing.T) {
 	cfg := ProjectConfig{Path: "/code/myproject", BaseDir: "~/.wtree/myproject"}
 
 	require.Equal(t, filepath.Join(home, ".wtree", "myproject"), cfg.EffectiveBaseDir())
+}
+
+func TestTicketPrefixUnmarshalScalar(t *testing.T) {
+	var p ProjectConfig
+	require.NoError(t, yaml.Unmarshal([]byte("path: /a\nticket_prefix: AB-\n"), &p))
+	require.Equal(t, TicketPrefixes{"AB-"}, p.TicketPrefix)
+}
+
+func TestTicketPrefixUnmarshalList(t *testing.T) {
+	var p ProjectConfig
+	require.NoError(t, yaml.Unmarshal([]byte("path: /a\nticket_prefix: [AB-, BCD-]\n"), &p))
+	require.Equal(t, TicketPrefixes{"AB-", "BCD-"}, p.TicketPrefix)
+}
+
+func TestTicketPrefixUnmarshalEmptyScalar(t *testing.T) {
+	var p ProjectConfig
+	require.NoError(t, yaml.Unmarshal([]byte("path: /a\nticket_prefix: \"\"\n"), &p))
+	require.Empty(t, p.TicketPrefix)
+}
+
+func TestTicketPrefixUnmarshalInvalid(t *testing.T) {
+	var p ProjectConfig
+	err := yaml.Unmarshal([]byte("path: /a\nticket_prefix: {a: b}\n"), &p)
+	require.ErrorContains(t, err, "ticket_prefix")
+}
+
+func TestTicketPrefixMarshal(t *testing.T) {
+	cases := []struct {
+		name   string
+		prefix TicketPrefixes
+		want   string
+	}{
+		{"single stays scalar", TicketPrefixes{"AB-"}, "path: /a\nticket_prefix: AB-\n"},
+		{"many as list", TicketPrefixes{"AB-", "BCD-"}, "path: /a\nticket_prefix:\n    - AB-\n    - BCD-\n"},
+		{"empty omitted", nil, "path: /a\n"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			data, err := yaml.Marshal(ProjectConfig{Path: "/a", TicketPrefix: c.prefix})
+			require.NoError(t, err)
+			require.Equal(t, c.want, string(data))
+
+			var p ProjectConfig
+			require.NoError(t, yaml.Unmarshal(data, &p))
+			require.Equal(t, c.prefix, p.TicketPrefix)
+		})
+	}
 }

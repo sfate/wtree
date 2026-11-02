@@ -125,7 +125,7 @@ func (m *Manager) List() ([]WorktreeEntry, error) {
 // Create creates (or navigates to an existing) worktree for the given ref.
 //
 // If branch is empty, the manager attempts to derive one from the ref using
-// TicketPrefix/BranchPrefix. Missing local branches are created from
+// TicketPrefixes/BranchPrefix. Missing local branches are created from
 // origin/<branch> when that remote branch exists; otherwise baseBranch is used,
 // resolving from origin/HEAD when baseBranch is empty.
 //
@@ -319,13 +319,15 @@ func (m *Manager) DeleteEntries(entries []WorktreeEntry) error {
 	return errors.Join(errs...)
 }
 
-// deriveBranch converts a ticket-style ref (e.g. "ABC-1234") into a branch name.
+// deriveBranch converts a ticket-style ref (e.g. "AB-1234") into a branch name
+// using the first configured ticket prefix that the ref starts with.
 func (m *Manager) deriveBranch(ref string) (string, error) {
-	if m.cfg.TicketPrefix == "" || !strings.HasPrefix(ref, m.cfg.TicketPrefix) {
+	prefix, ok := m.matchTicketPrefix(ref)
+	if !ok {
 		return "", fmt.Errorf("[branch] is required")
 	}
-	num := strings.TrimPrefix(ref, m.cfg.TicketPrefix)
-	branchName := m.cfg.BranchPrefix + strings.ToLower(m.cfg.TicketPrefix) + num
+	num := strings.TrimPrefix(ref, prefix)
+	branchName := m.cfg.BranchPrefix + strings.ToLower(prefix) + num
 
 	found, err := m.git.FindBranch(m.projectDir, branchName)
 	if err != nil {
@@ -335,6 +337,15 @@ func (m *Manager) deriveBranch(ref string) (string, error) {
 		return found, nil
 	}
 	return branchName, nil
+}
+
+func (m *Manager) matchTicketPrefix(ref string) (string, bool) {
+	for _, p := range m.cfg.TicketPrefixes {
+		if p != "" && strings.HasPrefix(ref, p) {
+			return p, true
+		}
+	}
+	return "", false
 }
 
 func (m *Manager) removeEmptyDir(dir string) {

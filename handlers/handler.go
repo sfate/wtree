@@ -99,9 +99,9 @@ func (h *Handler) newManager() (*wtreepkg.Manager, error) {
 		return nil, fmt.Errorf("config: %w", err)
 	}
 	managerCfg := wtreepkg.Config{
-		BaseDir:      cfg.EffectiveBaseDir(),
-		TicketPrefix: cfg.TicketPrefix,
-		BranchPrefix: cfg.BranchPrefix,
+		BaseDir:        cfg.EffectiveBaseDir(),
+		TicketPrefixes: cfg.TicketPrefix,
+		BranchPrefix:   cfg.BranchPrefix,
 	}
 	if script := cfg.Hooks.ExpandedPostNavigation(); script != "" {
 		managerCfg.PostNavigation = func(ref, projectName, worktreeDir string) error {
