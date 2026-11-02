@@ -70,7 +70,7 @@ func TestVersionFlagAllowsExtraArgs(t *testing.T) {
 
 func TestDeleteFlagPassesFlagValue(t *testing.T) {
 	cmd, _ := newTestCommand()
-	cmd.SetArgs([]string{"--delete", "LM-9999"})
+	cmd.SetArgs([]string{"--delete", "AB-9999"})
 
 	err := cmd.Execute()
 	require.Error(t, err)

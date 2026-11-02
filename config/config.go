@@ -25,13 +25,49 @@ func (h HooksConfig) ExpandedPostNavigation() string { return expandHome(h.PostN
 // ExpandedPostDelete returns the PostDelete path with ~ expanded.
 func (h HooksConfig) ExpandedPostDelete() string { return expandHome(h.PostDelete) }
 
+// TicketPrefixes is a list of ticket prefixes. In YAML it is a scalar or a sequence.
+type TicketPrefixes []string
+
+// UnmarshalYAML accepts a single string or a list of strings.
+func (t *TicketPrefixes) UnmarshalYAML(value *yaml.Node) error {
+	switch value.Kind {
+	case yaml.ScalarNode:
+		var s string
+		if err := value.Decode(&s); err != nil {
+			return err
+		}
+		*t = nil
+		if s != "" {
+			*t = TicketPrefixes{s}
+		}
+		return nil
+	case yaml.SequenceNode:
+		var list []string
+		if err := value.Decode(&list); err != nil {
+			return err
+		}
+		*t = list
+		return nil
+	default:
+		return fmt.Errorf("ticket_prefix: expected a string or a list of strings at line %d", value.Line)
+	}
+}
+
+// MarshalYAML writes one prefix as a scalar so existing configs keep their shape.
+func (t TicketPrefixes) MarshalYAML() (any, error) {
+	if len(t) == 1 {
+		return t[0], nil
+	}
+	return []string(t), nil
+}
+
 // ProjectConfig holds per-project settings from the config file and runtime hooks.
 type ProjectConfig struct {
-	Path         string      `yaml:"path"`
-	BaseDir      string      `yaml:"base_dir,omitempty"`
-	TicketPrefix string      `yaml:"ticket_prefix,omitempty"`
-	BranchPrefix string      `yaml:"branch_prefix,omitempty"`
-	Hooks        HooksConfig `yaml:"hooks,omitempty"`
+	Path         string         `yaml:"path"`
+	BaseDir      string         `yaml:"base_dir,omitempty"`
+	TicketPrefix TicketPrefixes `yaml:"ticket_prefix,omitempty"`
+	BranchPrefix string         `yaml:"branch_prefix,omitempty"`
+	Hooks        HooksConfig    `yaml:"hooks,omitempty"`
 
 	PostNavigation func(ref, projectName, worktreeDir string) error `yaml:"-"`
 	PostDelete     func(ref string) error                           `yaml:"-"`
@@ -59,7 +95,7 @@ func DefaultProjectConfig(projectDir string) ProjectConfig {
 	return ProjectConfig{
 		Path:         projectDir,
 		BaseDir:      filepath.Join(projectDir, ".wtree"),
-		TicketPrefix: "ABC-",
+		TicketPrefix: TicketPrefixes{"AB-"},
 		BranchPrefix: "ob-",
 	}
 }

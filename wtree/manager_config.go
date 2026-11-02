@@ -3,9 +3,9 @@ package wtree
 import gitpkg "github.com/sfate/wtree/git"
 
 type Config struct {
-	BaseDir      string
-	TicketPrefix string
-	BranchPrefix string
+	BaseDir        string
+	TicketPrefixes []string
+	BranchPrefix   string
 
 	PostNavigation func(ref, projectName, worktreeDir string) error
 	PostDelete     func(ref string) error

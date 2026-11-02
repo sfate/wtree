@@ -30,7 +30,7 @@ func (a *rootArgs) Description() string {
 }
 
 func (a *rootArgs) Epilog() string {
-	return "Examples:\n  wtree ABC-1234\n  wtree feature-x my-branch develop\n  wtree --list\n  wtree --delete ABC-1234"
+	return "Examples:\n  wtree AB-1234\n  wtree feature-x my-branch develop\n  wtree --list\n  wtree --delete AB-1234"
 }
 
 type ExitError struct {

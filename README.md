@@ -66,11 +66,15 @@ On first run inside a git project, wtree automatically adds an entry for that pr
 projects:
   - path: ~/code/project-abc
     base_dir: ~/.wtree/project-abc   # optional — default is ~/code/project-abc/.wtree
-    ticket_prefix: ABC-   # optional — enables automatic branch derivation from refs like ABC-1234
-    branch_prefix: ob-    # optional — prepended to ticket prefix: ob- + abc- → ob-abc-1234
+    ticket_prefix: AB-   # optional — enables automatic branch derivation from refs like AB-1234
+    branch_prefix: ob-    # optional — prepended to ticket prefix: ob- + ab- → ob-ab-1234
     hooks:
       post_navigation: ~/.config/wtree/hooks/project-abc/post_navigation.sh
       post_delete: ~/.config/wtree/hooks/project-abc/post_delete.sh
+
+  - path: ~/code/project-multi
+    ticket_prefix: [AB-, BCD-]   # a list — first prefix the ref starts with wins: AB-6620 → ob-ab-6620, BCD-124 → ob-bcd-124
+    branch_prefix: ob-
 
   - path: ~/code/personal-site
     # no ticket_prefix — branch must always be supplied explicitly
@@ -79,7 +83,7 @@ projects:
 **Rules:**
 - the YAML root contains `projects` only
 - `base_dir` is optional per project; when omitted it defaults to `<project>/.wtree`
-- `ticket_prefix` is optional; if omitted, `[branch]` must always be passed explicitly
+- `ticket_prefix` is optional; it is a string or a list of strings. If omitted, `[branch]` must always be passed explicitly
 - `branch_prefix` is optional; only meaningful when `ticket_prefix` is set
 - `hooks` are optional; each entry is a path to an executable script
 - Project `path` must be unique across all entries
@@ -101,11 +105,13 @@ If you use the default in-project base dir, add `.wtree/` to your repository’s
 
 **Branch derivation:**
 
-| `ticket_prefix` | `branch_prefix` | ref `ABC-1234` → branch |
-|---|---|---|
-| `ABC-` | `ob-` | `ob-abc-1234` |
-| `ABC-` | _(absent)_ | `abc-1234` |
-| _(absent)_ | any | `[branch]` required |
+| `ticket_prefix` | `branch_prefix` | ref | branch |
+|---|---|---|---|
+| `AB-` | `ob-` | `AB-1234` | `ob-ab-1234` |
+| `AB-` | _(absent)_ | `AB-1234` | `ab-1234` |
+| `[AB-, BCD-]` | `ob-` | `BCD-124` | `ob-bcd-124` |
+| `[AB-, BCD-]` | `ob-` | `AB-1234` | `[branch]` required |
+| _(absent)_ | any | `AB-1234` | `[branch]` required |
 
 ## Commands
 
@@ -115,10 +121,10 @@ If you use the default in-project base dir, add `.wtree/` to your repository’s
 wtree <ref> [branch] [base_branch]
 ```
 
-If `ticket_prefix` is configured and `<ref>` starts with it, the branch name is derived automatically. Otherwise `[branch]` is required.
+If `ticket_prefix` is configured and `<ref>` starts with one of its prefixes, the branch name is derived automatically. Otherwise `[branch]` is required.
 
 ```bash
-wtree ABC-1234                        # auto-derives branch from ticket number
+wtree AB-1234                        # auto-derives branch from ticket number
 wtree feature-x my-feature-branch    # explicit branch
 wtree feature-x my-branch develop    # explicit branch and base branch
 ```

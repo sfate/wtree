@@ -105,27 +105,27 @@ func TestWorktreeEntryRelativeAge(t *testing.T) {
 
 func TestDefaultProjectConfig(t *testing.T) {
 	cfg := Config{
-		BaseDir:      "/code/myproject/.wtree",
-		TicketPrefix: "ABC-",
-		BranchPrefix: "ob-",
+		BaseDir:        "/code/myproject/.wtree",
+		TicketPrefixes: []string{"AB-"},
+		BranchPrefix:   "ob-",
 	}
 
 	require.Equal(t, "/code/myproject/.wtree", cfg.BaseDir)
-	require.Equal(t, "ABC-", cfg.TicketPrefix)
+	require.Equal(t, []string{"AB-"}, cfg.TicketPrefixes)
 	require.Equal(t, "ob-", cfg.BranchPrefix)
 }
 
 func TestDeriveBranchErrorPath(t *testing.T) {
 	projectDir := t.TempDir()
 	m := NewManager(projectDir, Config{
-		BaseDir:      filepath.Join(projectDir, ".wtree"),
-		TicketPrefix: "ABC-",
-		BranchPrefix: "ob-",
+		BaseDir:        filepath.Join(projectDir, ".wtree"),
+		TicketPrefixes: []string{"AB-"},
+		BranchPrefix:   "ob-",
 	}, ManagerDeps{
 		Git: &fakeGitClient{},
 	})
 
-	// Ref without TicketPrefix should return an error.
+	// Ref without a ticket prefix should return an error.
 	_, err := m.deriveBranch("no-prefix-123")
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "[branch] is required")
@@ -134,15 +134,15 @@ func TestDeriveBranchErrorPath(t *testing.T) {
 func TestDeriveBranchHappyPath(t *testing.T) {
 	projectDir := t.TempDir()
 	m := NewManager(projectDir, Config{
-		BaseDir:      filepath.Join(projectDir, ".wtree"),
-		TicketPrefix: "ABC-",
-		BranchPrefix: "ob-",
+		BaseDir:        filepath.Join(projectDir, ".wtree"),
+		TicketPrefixes: []string{"AB-"},
+		BranchPrefix:   "ob-",
 	}, ManagerDeps{
 		Git: &fakeGitClient{},
 	})
 
 	// Use a ticket ref that is unlikely to match an existing branch.
-	branch, err := m.deriveBranch("ABC-99999")
+	branch, err := m.deriveBranch("AB-99999")
 	require.NoError(t, err)
 	require.Equal(t, "ob-abc-99999", branch)
 }
@@ -150,9 +150,9 @@ func TestDeriveBranchHappyPath(t *testing.T) {
 func TestDeriveBranchUsesExactBranchMatch(t *testing.T) {
 	projectDir := t.TempDir()
 	m := NewManager(projectDir, Config{
-		BaseDir:      filepath.Join(projectDir, ".wtree"),
-		TicketPrefix: "ABC-",
-		BranchPrefix: "ob-",
+		BaseDir:        filepath.Join(projectDir, ".wtree"),
+		TicketPrefixes: []string{"AB-"},
+		BranchPrefix:   "ob-",
 	}, ManagerDeps{
 		Git: &fakeGitClient{
 			findBranch: map[string]string{
@@ -161,9 +161,43 @@ func TestDeriveBranchUsesExactBranchMatch(t *testing.T) {
 		},
 	})
 
-	branch, err := m.deriveBranch("ABC-1234")
+	branch, err := m.deriveBranch("AB-1234")
 	require.NoError(t, err)
 	require.Equal(t, "ob-abc-1234", branch)
+}
+
+func TestDeriveBranchMultiplePrefixes(t *testing.T) {
+	projectDir := t.TempDir()
+	m := NewManager(projectDir, Config{
+		BaseDir:        filepath.Join(projectDir, ".wtree"),
+		TicketPrefixes: []string{"AB-", "BCD-"},
+		BranchPrefix:   "ob-",
+	}, ManagerDeps{
+		Git: &fakeGitClient{},
+	})
+
+	branch, err := m.deriveBranch("AB-6620")
+	require.NoError(t, err)
+	require.Equal(t, "ob-lm-6620", branch)
+
+	branch, err = m.deriveBranch("BCD-124")
+	require.NoError(t, err)
+	require.Equal(t, "ob-dev-124", branch)
+
+	_, err = m.deriveBranch("AB-1")
+	require.ErrorContains(t, err, "[branch] is required")
+}
+
+func TestDeriveBranchNoPrefixes(t *testing.T) {
+	projectDir := t.TempDir()
+	m := NewManager(projectDir, Config{
+		BaseDir: filepath.Join(projectDir, ".wtree"),
+	}, ManagerDeps{
+		Git: &fakeGitClient{},
+	})
+
+	_, err := m.deriveBranch("AB-1234")
+	require.ErrorContains(t, err, "[branch] is required")
 }
 
 func TestCleanReturnsJoinedErrors(t *testing.T) {
@@ -233,15 +267,15 @@ func TestCreatePropagatesBranchExistsError(t *testing.T) {
 	baseDir := filepath.Join(projectDir, ".wtree")
 	gitClient := &branchExistsErrorGit{err: errors.New("branch lookup failed")}
 	m := NewManager(projectDir, Config{
-		BaseDir:      baseDir,
-		TicketPrefix: "ABC-",
-		BranchPrefix: "ob-",
+		BaseDir:        baseDir,
+		TicketPrefixes: []string{"AB-"},
+		BranchPrefix:   "ob-",
 	}, ManagerDeps{
 		Git:    gitClient,
 		Logger: NewUI(nil, &bytes.Buffer{}, &bytes.Buffer{}),
 	})
 
-	_, _, err := m.Create("ABC-1234", "", "")
+	_, _, err := m.Create("AB-1234", "", "")
 	require.Error(t, err)
 	require.ErrorContains(t, err, "branch lookup failed")
 }

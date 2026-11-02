@@ -45,12 +45,12 @@ func TestPrintTableEmpty(t *testing.T) {
 func TestPrintTableWithEntries(t *testing.T) {
 	entries := []WorktreeEntry{
 		{
-			Ref:          "ABC-1234",
+			Ref:          "AB-1234",
 			Branch:       "ob-abc-1234",
 			LastCommitAt: time.Now().Add(-2 * time.Hour),
 		},
 		{
-			Ref:          "ABC-5678",
+			Ref:          "AB-5678",
 			Branch:       "ob-abc-5678",
 			LastCommitAt: time.Now().Add(-5 * 24 * time.Hour),
 		},
@@ -60,8 +60,8 @@ func TestPrintTableWithEntries(t *testing.T) {
 		PrintTable(entries)
 	})
 
-	require.Contains(t, output, "ABC-1234")
+	require.Contains(t, output, "AB-1234")
 	require.Contains(t, output, "ob-abc-1234")
-	require.Contains(t, output, "ABC-5678")
+	require.Contains(t, output, "AB-5678")
 	require.Contains(t, output, "ob-abc-5678")
 }
