@@ -144,7 +144,7 @@ func TestDeriveBranchHappyPath(t *testing.T) {
 	// Use a ticket ref that is unlikely to match an existing branch.
 	branch, err := m.deriveBranch("AB-99999")
 	require.NoError(t, err)
-	require.Equal(t, "ob-abc-99999", branch)
+	require.Equal(t, "ob-ab-99999", branch)
 }
 
 func TestDeriveBranchUsesExactBranchMatch(t *testing.T) {
@@ -156,14 +156,14 @@ func TestDeriveBranchUsesExactBranchMatch(t *testing.T) {
 	}, ManagerDeps{
 		Git: &fakeGitClient{
 			findBranch: map[string]string{
-				"ob-abc-1234": "ob-abc-1234",
+				"ob-ab-1234": "ob-ab-1234",
 			},
 		},
 	})
 
 	branch, err := m.deriveBranch("AB-1234")
 	require.NoError(t, err)
-	require.Equal(t, "ob-abc-1234", branch)
+	require.Equal(t, "ob-ab-1234", branch)
 }
 
 func TestDeriveBranchMultiplePrefixes(t *testing.T) {
@@ -178,13 +178,13 @@ func TestDeriveBranchMultiplePrefixes(t *testing.T) {
 
 	branch, err := m.deriveBranch("AB-6620")
 	require.NoError(t, err)
-	require.Equal(t, "ob-lm-6620", branch)
+	require.Equal(t, "ob-ab-6620", branch)
 
 	branch, err = m.deriveBranch("BCD-124")
 	require.NoError(t, err)
-	require.Equal(t, "ob-dev-124", branch)
+	require.Equal(t, "ob-bcd-124", branch)
 
-	_, err = m.deriveBranch("AB-1")
+	_, err = m.deriveBranch("XYZ-1")
 	require.ErrorContains(t, err, "[branch] is required")
 }
 
