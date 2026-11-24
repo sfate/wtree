@@ -223,6 +223,9 @@ func (m *Manager) Delete(ref string) error {
 	if _, err := os.Stat(wtDir); os.IsNotExist(err) {
 		return fmt.Errorf("worktree not found: %s", ref)
 	}
+	if err := m.ensureWorktreesClean([]string{ref}); err != nil {
+		return err
+	}
 
 	m.logger.Infof("Removing worktree: %s\n", ref)
 	if err := m.git.WorktreeRemove(m.projectDir, wtDir); err != nil {
@@ -245,6 +248,15 @@ func (m *Manager) Clean() error {
 			m.logger.Infof("No worktrees to clean for project: %s\n", m.ProjectName())
 			return nil
 		}
+		return err
+	}
+	var refs []string
+	for _, de := range dirEntries {
+		if de.IsDir() {
+			refs = append(refs, de.Name())
+		}
+	}
+	if err := m.ensureWorktreesClean(refs); err != nil {
 		return err
 	}
 
@@ -299,6 +311,14 @@ func (m *Manager) CleanStale(age time.Duration) ([]WorktreeEntry, error) {
 
 // DeleteEntries removes all worktrees in the provided slice.
 func (m *Manager) DeleteEntries(entries []WorktreeEntry) error {
+	refs := make([]string, 0, len(entries))
+	for _, e := range entries {
+		refs = append(refs, e.Ref)
+	}
+	if err := m.ensureWorktreesClean(refs); err != nil {
+		return err
+	}
+
 	var errs []error
 	for _, e := range entries {
 		if err := validateRef(e.Ref); err != nil {
@@ -321,6 +341,23 @@ func (m *Manager) DeleteEntries(entries []WorktreeEntry) error {
 
 	m.removeEmptyDir(m.worktreeProjectDir())
 	return errors.Join(errs...)
+}
+
+func (m *Manager) ensureWorktreesClean(refs []string) error {
+	var dirty []string
+	for _, ref := range refs {
+		isDirty, err := m.git.WorktreeDirty(m.worktreeDir(ref))
+		if err != nil {
+			return fmt.Errorf("check worktree %q status: %w", ref, err)
+		}
+		if isDirty {
+			dirty = append(dirty, ref)
+		}
+	}
+	if len(dirty) > 0 {
+		return fmt.Errorf("refusing to remove worktrees with uncommitted changes: %s", strings.Join(dirty, ", "))
+	}
+	return nil
 }
 
 func validateRef(ref string) error {

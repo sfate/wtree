@@ -167,6 +167,26 @@ func TestWorktreeRegisteredFalse(t *testing.T) {
 	require.False(t, registered)
 }
 
+func TestWorktreeDirtyTracksTrackedAndUntrackedChanges(t *testing.T) {
+	dir := makeTestRepo(t)
+	client := NewClient()
+
+	dirty, err := client.WorktreeDirty(dir)
+	require.NoError(t, err)
+	require.False(t, dirty)
+
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "README"), []byte("changed"), 0o644))
+	dirty, err = client.WorktreeDirty(dir)
+	require.NoError(t, err)
+	require.True(t, dirty)
+
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "README"), []byte("hello"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "new-file"), []byte("untracked"), 0o644))
+	dirty, err = client.WorktreeDirty(dir)
+	require.NoError(t, err)
+	require.True(t, dirty)
+}
+
 func TestWorktreeRegisteredDoesNotUseSubstringMatch(t *testing.T) {
 	dir := makeTestRepo(t)
 	gitSetup(t, dir, "branch", "wt-branch")

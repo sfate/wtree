@@ -18,6 +18,8 @@ type fakeGitClient struct {
 	findBranch      map[string]string
 	findBranchErr   error
 	removeErrors    map[string]error
+	dirtyPaths      map[string]bool
+	dirtyErrors     map[string]error
 	removedPaths    []string
 	ensureBranch    string
 	ensureBase      string
@@ -70,6 +72,13 @@ func (f *fakeGitClient) EnsureBranch(dir, branch, baseBranch string) error {
 
 func (f *fakeGitClient) WorktreeRegistered(projectDir, worktreeDir string) (bool, error) {
 	return false, nil
+}
+
+func (f *fakeGitClient) WorktreeDirty(worktreeDir string) (bool, error) {
+	if err := f.dirtyErrors[worktreeDir]; err != nil {
+		return false, err
+	}
+	return f.dirtyPaths[worktreeDir], nil
 }
 
 func (f *fakeGitClient) WorktreeAdd(projectDir, worktreeDir, branch string) error {
@@ -323,6 +332,46 @@ func TestDeleteEntriesReturnsJoinedErrors(t *testing.T) {
 	require.Error(t, err)
 	require.ErrorContains(t, err, "post-delete ref-a")
 	require.ErrorContains(t, err, "remove ref-b")
+}
+
+func TestDeleteRefusesDirtyWorktree(t *testing.T) {
+	projectDir := t.TempDir()
+	baseDir := filepath.Join(projectDir, ".wtree")
+	worktreeDir := filepath.Join(baseDir, "ref-a")
+	require.NoError(t, os.MkdirAll(worktreeDir, 0o755))
+	gitClient := &fakeGitClient{dirtyPaths: map[string]bool{worktreeDir: true}}
+	m := NewManager(projectDir, Config{BaseDir: baseDir}, ManagerDeps{Git: gitClient})
+
+	err := m.Delete("ref-a")
+	require.ErrorContains(t, err, "uncommitted changes: ref-a")
+	require.Empty(t, gitClient.removedPaths)
+}
+
+func TestCleanRefusesAllRemovalWhenAnyWorktreeIsDirty(t *testing.T) {
+	projectDir := t.TempDir()
+	baseDir := filepath.Join(projectDir, ".wtree")
+	cleanDir := filepath.Join(baseDir, "clean")
+	dirtyDir := filepath.Join(baseDir, "dirty")
+	require.NoError(t, os.MkdirAll(cleanDir, 0o755))
+	require.NoError(t, os.MkdirAll(dirtyDir, 0o755))
+	gitClient := &fakeGitClient{dirtyPaths: map[string]bool{dirtyDir: true}}
+	m := NewManager(projectDir, Config{BaseDir: baseDir}, ManagerDeps{Git: gitClient})
+
+	err := m.Clean()
+	require.ErrorContains(t, err, "uncommitted changes: dirty")
+	require.Empty(t, gitClient.removedPaths)
+}
+
+func TestDeleteEntriesRefusesAllRemovalWhenAnyWorktreeIsDirty(t *testing.T) {
+	projectDir := t.TempDir()
+	baseDir := filepath.Join(projectDir, ".wtree")
+	dirtyDir := filepath.Join(baseDir, "dirty")
+	gitClient := &fakeGitClient{dirtyPaths: map[string]bool{dirtyDir: true}}
+	m := NewManager(projectDir, Config{BaseDir: baseDir}, ManagerDeps{Git: gitClient})
+
+	err := m.DeleteEntries([]WorktreeEntry{{Ref: "clean"}, {Ref: "dirty"}})
+	require.ErrorContains(t, err, "uncommitted changes: dirty")
+	require.Empty(t, gitClient.removedPaths)
 }
 
 func TestCreatePropagatesBranchExistsError(t *testing.T) {
