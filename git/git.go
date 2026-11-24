@@ -20,6 +20,7 @@ type Client interface {
 	RemoteBranchExists(dir, remote, branch string) (bool, error)
 	EnsureBranch(dir, branch, baseBranch string) error
 	WorktreeRegistered(projectDir, worktreeDir string) (bool, error)
+	WorktreeDirty(worktreeDir string) (bool, error)
 	WorktreeAdd(projectDir, worktreeDir, branch string) error
 	WorktreeRemove(projectDir, worktreeDir string) error
 }
@@ -160,6 +161,15 @@ func (CLI) WorktreeRegistered(projectDir, worktreeDir string) (bool, error) {
 		}
 	}
 	return false, nil
+}
+
+// WorktreeDirty reports whether a worktree has tracked or untracked changes.
+func (CLI) WorktreeDirty(worktreeDir string) (bool, error) {
+	out, err := Run(worktreeDir, "status", "--porcelain", "--untracked-files=all")
+	if err != nil {
+		return false, err
+	}
+	return out != "", nil
 }
 
 // WorktreeAdd adds a new worktree at worktreeDir for the given branch.

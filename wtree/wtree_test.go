@@ -68,6 +68,10 @@ func (f *fakeGitClient) WorktreeRegistered(projectDir, worktreeDir string) (bool
 	return false, nil
 }
 
+func (f *fakeGitClient) WorktreeDirty(worktreeDir string) (bool, error) {
+	return false, nil
+}
+
 func (f *fakeGitClient) WorktreeAdd(projectDir, worktreeDir, branch string) error {
 	return nil
 }
