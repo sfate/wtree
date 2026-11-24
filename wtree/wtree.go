@@ -331,7 +331,7 @@ func (m *Manager) deriveBranch(ref string) (string, error) {
 
 	found, err := m.git.FindBranch(m.projectDir, branchName)
 	if err != nil {
-		return branchName, nil
+		return "", fmt.Errorf("find branch %q: %w", branchName, err)
 	}
 	if found != "" {
 		return found, nil
