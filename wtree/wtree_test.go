@@ -115,6 +115,52 @@ func TestDefaultProjectConfig(t *testing.T) {
 	require.Equal(t, "ob-", cfg.BranchPrefix)
 }
 
+func TestValidateRef(t *testing.T) {
+	tests := []struct {
+		name    string
+		ref     string
+		invalid bool
+	}{
+		{name: "ticket", ref: "AB-1234"},
+		{name: "arbitrary name", ref: "feature-name"},
+		{name: "empty", ref: "", invalid: true},
+		{name: "dot", ref: ".", invalid: true},
+		{name: "parent traversal", ref: "..", invalid: true},
+		{name: "parent path", ref: "../outside", invalid: true},
+		{name: "nested path", ref: "feature/name", invalid: true},
+		{name: "windows path", ref: `feature\name`, invalid: true},
+		{name: "nul byte", ref: "name\x00suffix", invalid: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateRef(tt.ref)
+			if tt.invalid {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestCreateRejectsTraversalRefBeforeCreatingDirectories(t *testing.T) {
+	projectDir := t.TempDir()
+	baseDir := filepath.Join(projectDir, ".wtree")
+	m := NewManager(projectDir, Config{BaseDir: baseDir}, ManagerDeps{Git: &fakeGitClient{}})
+
+	_, _, err := m.Create("../outside", "branch", "")
+	require.ErrorContains(t, err, "invalid ref")
+	_, statErr := os.Stat(baseDir)
+	require.ErrorIs(t, statErr, os.ErrNotExist)
+}
+
+func TestDeleteRejectsTraversalRef(t *testing.T) {
+	m := NewManager(t.TempDir(), Config{BaseDir: t.TempDir()}, ManagerDeps{Git: &fakeGitClient{}})
+
+	err := m.Delete("../outside")
+	require.ErrorContains(t, err, "invalid ref")
+}
+
 func TestDeriveBranchErrorPath(t *testing.T) {
 	projectDir := t.TempDir()
 	m := NewManager(projectDir, Config{
