@@ -132,8 +132,8 @@ func (m *Manager) List() ([]WorktreeEntry, error) {
 // Returns the worktree directory path, whether the worktree already existed,
 // and any error.
 func (m *Manager) Create(ref, branch, baseBranch string) (dir string, existed bool, err error) {
-	if ref == "" {
-		return "", false, fmt.Errorf("ref is required")
+	if err := validateRef(ref); err != nil {
+		return "", false, err
 	}
 
 	wtDir := m.worktreeDir(ref)
@@ -215,8 +215,8 @@ func (m *Manager) Create(ref, branch, baseBranch string) (dir string, existed bo
 
 // Delete removes the worktree identified by ref.
 func (m *Manager) Delete(ref string) error {
-	if ref == "" {
-		return fmt.Errorf("ref is required for delete")
+	if err := validateRef(ref); err != nil {
+		return fmt.Errorf("delete: %w", err)
 	}
 
 	wtDir := m.worktreeDir(ref)
@@ -321,6 +321,10 @@ func (m *Manager) DeleteEntries(entries []WorktreeEntry) error {
 
 	var errs []error
 	for _, e := range entries {
+		if err := validateRef(e.Ref); err != nil {
+			errs = append(errs, fmt.Errorf("remove %q: %w", e.Ref, err))
+			continue
+		}
 		m.logger.Infof("Removing: %s\n", e.Ref)
 		wtDir := m.worktreeDir(e.Ref)
 		if err := m.git.WorktreeRemove(m.projectDir, wtDir); err != nil {
@@ -356,6 +360,16 @@ func (m *Manager) ensureWorktreesClean(refs []string) error {
 	return nil
 }
 
+func validateRef(ref string) error {
+	if ref == "" {
+		return fmt.Errorf("ref is required")
+	}
+	if ref == "." || ref == ".." || strings.ContainsAny(ref, "/\\\x00") {
+		return fmt.Errorf("invalid ref %q: refs must be a single path component", ref)
+	}
+	return nil
+}
+
 // deriveBranch converts a ticket-style ref (e.g. "AB-1234") into a branch name
 // using the first configured ticket prefix that the ref starts with.
 func (m *Manager) deriveBranch(ref string) (string, error) {
@@ -368,7 +382,7 @@ func (m *Manager) deriveBranch(ref string) (string, error) {
 
 	found, err := m.git.FindBranch(m.projectDir, branchName)
 	if err != nil {
-		return branchName, nil
+		return "", fmt.Errorf("find branch %q: %w", branchName, err)
 	}
 	if found != "" {
 		return found, nil
