@@ -16,6 +16,7 @@ type fakeGitClient struct {
 	branches        map[string]bool
 	remoteBranches  map[string]bool
 	findBranch      map[string]string
+	findBranchErr   error
 	removeErrors    map[string]error
 	removedPaths    []string
 	ensureBranch    string
@@ -44,6 +45,9 @@ func (f *fakeGitClient) BaseBranch(dir string) (string, error) {
 }
 
 func (f *fakeGitClient) FindBranch(dir, branch string) (string, error) {
+	if f.findBranchErr != nil {
+		return "", f.findBranchErr
+	}
 	if found, ok := f.findBranch[branch]; ok {
 		return found, nil
 	}
@@ -191,6 +195,19 @@ func TestDeriveBranchHappyPath(t *testing.T) {
 	branch, err := m.deriveBranch("AB-99999")
 	require.NoError(t, err)
 	require.Equal(t, "ob-ab-99999", branch)
+}
+
+func TestDeriveBranchPropagatesFindBranchError(t *testing.T) {
+	projectDir := t.TempDir()
+	lookupErr := errors.New("git lookup failed")
+	m := NewManager(projectDir, Config{
+		TicketPrefixes: []string{"AB-"},
+		BranchPrefix:   "ob-",
+	}, ManagerDeps{Git: &fakeGitClient{findBranchErr: lookupErr}})
+
+	_, err := m.deriveBranch("AB-1234")
+	require.ErrorIs(t, err, lookupErr)
+	require.ErrorContains(t, err, `find branch "ob-ab-1234"`)
 }
 
 func TestDeriveBranchUsesExactBranchMatch(t *testing.T) {
